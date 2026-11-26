@@ -1,54 +1,39 @@
-// Модуль хранения данных (Appwrite Cloud + автоматический fallback на localStorage).
-// Для включения облака Appwrite достаточно указать параметры appwriteConfig ниже.
+// Модуль хранения данных (Supabase Cloud + автоматический fallback на localStorage).
+// Для включения облака Supabase укажите параметры supabaseConfig ниже.
 // Если конфиг пустой, сайт автоматически работает автономно в localStorage без внешних запросов!
 
 export const MASTER_PASSWORD = "admin2026";
 
-export const appwriteConfig = {
-  endpoint: "https://sgp.cloud.appwrite.io/v1", // Региональный endpoint Appwrite Cloud (sgp = Singapore)
-  projectId: "6b085fde00336c9b616c",     // Project ID из настроек консоли Appwrite
-  databaseId: "oge_db",                     // ID базы данных в Appwrite
-  collectionCodes: "access_codes",           // ID коллекции кодов доступа
-  collectionResults: "exam_results",         // ID коллекции результатов тестирования
+export const supabaseConfig = {
+  url: "https://umhhntnghqmxbgvmvrvg.supabase.co",
+  anonKey: "sb_publishable_Mk5IzlDnS8aBrdcNJpjG7Q_y1ApaQGD",
 };
 
-let client = null;
-let databases = null;
-let isAppwriteReady = false;
+let supabase = null;
+let isSupabaseReady = false;
 
-// Динамическая инициализация официального браузерного Appwrite Web SDK (v14/v15 через CDN без сборщиков)
-export async function initAppwrite() {
-  if (isAppwriteReady) return databases;
+async function initSupabase() {
+  if (isSupabaseReady) return supabase;
 
-  const isConfigured = Boolean(
-    appwriteConfig.endpoint &&
-    appwriteConfig.projectId &&
-    !appwriteConfig.projectId.includes("PASTE") &&
-    appwriteConfig.databaseId
-  );
+  const isConfigured = Boolean(supabaseConfig.url && supabaseConfig.anonKey);
 
   if (!isConfigured) {
     return null;
   }
 
   try {
-    const { Client, Databases } = await import("https://cdn.jsdelivr.net/npm/appwrite@14.0.1/+esm");
-    client = new Client();
-    client
-      .setEndpoint(appwriteConfig.endpoint)
-      .setProject(appwriteConfig.projectId);
-
-    databases = new Databases(client);
-    isAppwriteReady = true;
-    return databases;
+    const { createClient } = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
+    supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey);
+    isSupabaseReady = true;
+    return supabase;
   } catch (err) {
-    console.warn("Не удалось подключить Appwrite SDK, переключаемся на localStorage:", err);
+    console.warn("Не удалось подключить Supabase SDK, переключаемся на localStorage:", err);
     return null;
   }
 }
 
 export function isUsingCloud() {
-  return isAppwriteReady;
+  return isSupabaseReady;
 }
 
 const KEYS = {
@@ -78,29 +63,28 @@ export async function validateMasterPassword(password) {
 // ---------------- КОДЫ ДОСТУПА ----------------
 
 export async function getCodes() {
-  const db = await initAppwrite();
-  if (db) {
+  const sb = await initSupabase();
+  if (sb) {
     try {
-      const { Query } = await import("https://cdn.jsdelivr.net/npm/appwrite@14.0.1/+esm");
-      const response = await db.listDocuments(
-        appwriteConfig.databaseId,
-        appwriteConfig.collectionCodes,
-        [Query.orderDesc("$createdAt"), Query.limit(100)]
-      );
+      const { data, error } = await sb
+        .from("access_codes")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(100);
 
-      if (response && Array.isArray(response.documents)) {
-        return response.documents.map((doc) => ({
-          code: doc.code || doc.$id,
-          studentName: doc.studentName,
-          className: doc.className || "",
+      if (data && !error) {
+        return data.map((doc) => ({
+          code: doc.code,
+          studentName: doc.student_name,
+          className: doc.class_name || "",
           used: Boolean(doc.used),
-          createdAt: doc.createdAt || doc.$createdAt,
-          usedAt: doc.usedAt || null,
-          sessionId: doc.sessionId || null,
+          createdAt: doc.created_at,
+          usedAt: doc.used_at || null,
+          sessionId: doc.session_id || null,
         }));
       }
     } catch (err) {
-      console.warn("Ошибка загрузки кодов из Appwrite, читаем локальные:", err);
+      console.warn("Ошибка загрузки кодов из Supabase, читаем локальные:", err);
     }
   }
   return readLocal(KEYS.codes, []);
@@ -113,7 +97,7 @@ export async function getActiveCodes() {
 
 // Создание кодов для списка учеников ("Имя Ф.")
 export async function createStudentCodes(studentsList, defaultClass = "") {
-  const db = await initAppwrite();
+  const sb = await initSupabase();
   const existing = await getCodes();
   const known = new Set(existing.map((item) => item.code));
 
@@ -142,30 +126,21 @@ export async function createStudentCodes(studentsList, defaultClass = "") {
     };
     newCodes.push(record);
 
-    if (db) {
+    if (sb) {
       try {
-        const { ID, Permission, Role } = await import("https://cdn.jsdelivr.net/npm/appwrite@14.0.1/+esm");
-        // Используем сам код OGE-XXXX в качестве documentId для мгновенного прямого поиска
-        await db.createDocument(
-          appwriteConfig.databaseId,
-          appwriteConfig.collectionCodes,
-          code,
+        await sb.from("access_codes").insert([
           {
             code: record.code,
-            studentName: record.studentName,
-            className: record.className,
+            student_name: record.studentName,
+            class_name: record.className,
             used: false,
-            createdAt: record.createdAt,
-            usedAt: null,
-            sessionId: null,
+            created_at: record.createdAt,
+            used_at: null,
+            session_id: null,
           },
-          [
-            Permission.read(Role.any()),
-            Permission.update(Role.any()),
-          ]
-        );
+        ]);
       } catch (err) {
-        console.error("Ошибка сохранения кода в Appwrite:", err);
+        console.error("Ошибка сохранения кода в Supabase:", err);
       }
     }
   }
@@ -179,35 +154,35 @@ export async function createStudentCodes(studentsList, defaultClass = "") {
 
 export async function startExam({ code, questions }) {
   const normalizedCode = String(code).trim().toUpperCase();
-  const db = await initAppwrite();
+  const sb = await initSupabase();
 
   let accessCode = null;
 
-  if (db) {
+  if (sb) {
     try {
-      const doc = await db.getDocument(
-        appwriteConfig.databaseId,
-        appwriteConfig.collectionCodes,
-        normalizedCode
-      );
+      const { data, error } = await sb
+        .from("access_codes")
+        .select("*")
+        .eq("code", normalizedCode)
+        .single();
 
-      if (doc) {
-        if (doc.used) {
+      if (data && !error) {
+        if (data.used) {
           throw new Error("Этот код доступа уже был использован.");
         }
         accessCode = {
-          code: doc.code || doc.$id,
-          studentName: doc.studentName,
-          className: doc.className || "",
-          used: doc.used,
-          createdAt: doc.createdAt || doc.$createdAt,
-          usedAt: doc.usedAt,
-          sessionId: doc.sessionId,
+          code: data.code,
+          studentName: data.student_name,
+          className: data.class_name || "",
+          used: data.used,
+          createdAt: data.created_at,
+          usedAt: data.used_at,
+          sessionId: data.session_id,
         };
       }
     } catch (err) {
       if (err.message && err.message.includes("уже был")) throw err;
-      console.warn("Проверка в Appwrite не удалась, ищем локально:", err);
+      console.warn("Проверка в Supabase не удалась, ищем локально:", err);
     }
   }
 
@@ -249,20 +224,18 @@ export async function startExam({ code, questions }) {
     writeLocal(KEYS.codes, localCodes);
   }
 
-  if (db) {
+  if (sb) {
     try {
-      await db.updateDocument(
-        appwriteConfig.databaseId,
-        appwriteConfig.collectionCodes,
-        normalizedCode,
-        {
+      await sb
+        .from("access_codes")
+        .update({
           used: true,
-          usedAt: accessCode.usedAt,
-          sessionId: session.id,
-        }
-      );
+          used_at: accessCode.usedAt,
+          session_id: session.id,
+        })
+        .eq("code", normalizedCode);
     } catch (err) {
-      console.error("Ошибка обновления статуса кода в Appwrite:", err);
+      console.error("Ошибка обновления статуса кода в Supabase:", err);
     }
   }
 
@@ -302,57 +275,48 @@ export async function recordTabSwitch() {
 // ---------------- РЕЗУЛЬТАТЫ И СТАТИСТИКА ----------------
 
 export async function saveResult(result) {
-  const db = await initAppwrite();
+  const sb = await initSupabase();
   const results = readLocal(KEYS.results, []);
   results.push(result);
   writeLocal(KEYS.results, results);
   localStorage.removeItem(KEYS.session);
 
-  if (db) {
+  if (sb) {
     try {
-      const { ID, Permission, Role } = await import("https://cdn.jsdelivr.net/npm/appwrite@14.0.1/+esm");
-      await db.createDocument(
-        appwriteConfig.databaseId,
-        appwriteConfig.collectionResults,
-        ID.unique(),
+      await sb.from("exam_results").insert([
         {
           id: result.id,
           code: result.code,
-          studentName: result.studentName,
-          className: result.className || "",
-          startedAt: result.startedAt,
-          finishedAt: result.finishedAt,
-          durationSeconds: result.durationSeconds,
+          student_name: result.studentName,
+          class_name: result.className || "",
+          started_at: result.startedAt,
+          finished_at: result.finishedAt,
+          duration_seconds: result.durationSeconds,
           score: result.score,
-          tabSwitches: result.tabSwitches,
+          tab_switches: result.tabSwitches,
           status: result.status,
           answers: JSON.stringify(result.answers || []),
         },
-        [
-          Permission.read(Role.any()),
-          Permission.write(Role.any()),
-        ]
-      );
+      ]);
     } catch (err) {
-      console.error("Ошибка сохранения результата в Appwrite:", err);
+      console.error("Ошибка сохранения результата в Supabase:", err);
     }
   }
   return result;
 }
 
 export async function getResults() {
-  const db = await initAppwrite();
-  if (db) {
+  const sb = await initSupabase();
+  if (sb) {
     try {
-      const { Query } = await import("https://cdn.jsdelivr.net/npm/appwrite@14.0.1/+esm");
-      const response = await db.listDocuments(
-        appwriteConfig.databaseId,
-        appwriteConfig.collectionResults,
-        [Query.orderDesc("$createdAt"), Query.limit(100)]
-      );
+      const { data, error } = await sb
+        .from("exam_results")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(100);
 
-      if (response && Array.isArray(response.documents) && response.documents.length > 0) {
-        return response.documents.map((doc) => {
+      if (data && !error && data.length > 0) {
+        return data.map((doc) => {
           let parsedAnswers = [];
           try {
             parsedAnswers = typeof doc.answers === "string" ? JSON.parse(doc.answers) : (doc.answers || []);
@@ -361,22 +325,22 @@ export async function getResults() {
           }
 
           return {
-            id: doc.id || doc.$id,
+            id: doc.id,
             code: doc.code,
-            studentName: doc.studentName,
-            className: doc.className || "",
-            startedAt: doc.startedAt,
-            finishedAt: doc.finishedAt || doc.$createdAt,
-            durationSeconds: Number(doc.durationSeconds) || 0,
+            studentName: doc.student_name,
+            className: doc.class_name || "",
+            startedAt: doc.started_at,
+            finishedAt: doc.finished_at || doc.created_at,
+            durationSeconds: Number(doc.duration_seconds) || 0,
             score: Number(doc.score) || 0,
-            tabSwitches: Number(doc.tabSwitches) || 0,
+            tabSwitches: Number(doc.tab_switches) || 0,
             status: doc.status || "Завершён штатно",
             answers: parsedAnswers,
           };
         });
       }
     } catch (err) {
-      console.warn("Не удалось прочитать результаты из Appwrite, читаем локальные:", err);
+      console.warn("Не удалось прочитать результаты из Supabase, читаем локальные:", err);
     }
   }
   return readLocal(KEYS.results, []);

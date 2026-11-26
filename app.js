@@ -15,7 +15,7 @@ import {
   getSavedTheme,
   saveTheme,
   isUsingCloud,
-  initAppwrite,
+  initSupabase,
 } from "./storage.js";
 
 const $ = (selector) => document.querySelector(selector);
@@ -77,7 +77,7 @@ function initTheme() {
 
 async function initialize() {
   initTheme();
-  await initAppwrite();
+  await initSupabase();
   updateStorageIndicator();
 
   const saved = await getSession();
@@ -96,7 +96,7 @@ function updateStorageIndicator() {
   const indicator = $("#storage-indicator");
   if (!indicator) return;
   if (isUsingCloud()) {
-    indicator.textContent = "🚀 Подключен Appwrite Cloud";
+    indicator.textContent = "🚀 Подключен Supabase Cloud";
     indicator.style.color = "var(--primary)";
   } else {
     indicator.textContent = "🟢 Автономный режим (localStorage)";
