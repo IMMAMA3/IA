@@ -5,7 +5,7 @@
 export const MASTER_PASSWORD = "admin2026";
 
 export const appwriteConfig = {
-  endpoint: "https://cloud.appwrite.io/v1", // Или URL вашего собственного инстанса Appwrite
+  endpoint: "https://sgp.cloud.appwrite.io/v1", // Региональный endpoint Appwrite Cloud (sgp = Singapore)
   projectId: "6b085fde00336c9b616c",     // Project ID из настроек консоли Appwrite
   databaseId: "oge_db",                     // ID базы данных в Appwrite
   collectionCodes: "access_codes",           // ID коллекции кодов доступа
