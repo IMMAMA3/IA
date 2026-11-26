@@ -16,7 +16,8 @@ import {
   saveTheme,
   isUsingCloud,
   initSupabase,
-} from "./storage.js";
+  getSupabaseStatus,
+} from "./storage.js?v=20261127";
 
 const $ = (selector) => document.querySelector(selector);
 const views = ["login-view", "exam-view", "result-view", "teacher-view"];
@@ -95,12 +96,21 @@ async function initialize() {
 function updateStorageIndicator() {
   const indicator = $("#storage-indicator");
   if (!indicator) return;
-  if (isUsingCloud()) {
+  const status = typeof getSupabaseStatus === "function"
+    ? getSupabaseStatus()
+    : { ready: isUsingCloud(), error: null };
+
+  if (status.ready) {
     indicator.textContent = "🚀 Подключен Supabase Cloud";
     indicator.style.color = "var(--primary)";
-  } else {
-    indicator.textContent = "🟢 Автономный режим (localStorage)";
+    indicator.title = "";
+    return;
   }
+
+  const err = status.error ? String(status.error) : "инициализация не выполнена или завершилась ошибкой";
+  indicator.textContent = `⚠️ localStorage (Supabase: ${err})`;
+  indicator.style.color = "var(--danger, #c0392b)";
+  indicator.title = err;
 }
 
 // ---------------- ВХОД УЧЕНИКА (ТОЛЬКО ID) ----------------

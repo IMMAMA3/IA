@@ -11,29 +11,51 @@ export const supabaseConfig = {
 
 let supabase = null;
 let isSupabaseReady = false;
+let supabaseInitError = null;
 
-async function initSupabase() {
-  if (isSupabaseReady) return supabase;
+export async function initSupabase() {
+  if (isSupabaseReady && supabase) return supabase;
 
   const isConfigured = Boolean(supabaseConfig.url && supabaseConfig.anonKey);
-
   if (!isConfigured) {
+    supabaseInitError = "Supabase не настроен: отсутствует url или anonKey.";
     return null;
   }
 
   try {
-    const { createClient } = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
+    const mod = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
+    const createClient = mod?.createClient;
+    if (typeof createClient !== "function") {
+      throw new Error("Supabase SDK не экспортирует createClient");
+    }
     supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey);
+
+    // Лёгкая проверка доступности API/ключа
+    const { error } = await supabase.from("access_codes").select("code").limit(1);
+    if (error) throw error;
+
     isSupabaseReady = true;
+    supabaseInitError = null;
     return supabase;
   } catch (err) {
-    console.warn("Не удалось подключить Supabase SDK, переключаемся на localStorage:", err);
+    supabaseInitError = err?.message || String(err);
+    console.warn("Supabase недоступен, переключаемся на localStorage:", err);
+    supabase = null;
+    isSupabaseReady = false;
     return null;
   }
 }
 
+export function getSupabaseInitError() {
+  return supabaseInitError;
+}
+
 export function isUsingCloud() {
   return isSupabaseReady;
+}
+
+export function getSupabaseStatus() {
+  return { ready: isSupabaseReady, error: supabaseInitError };
 }
 
 const KEYS = {
