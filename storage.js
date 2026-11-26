@@ -1,8 +1,7 @@
-// Модуль хранения данных (Supabase Cloud + автоматический fallback на localStorage).
-// Для включения облака Supabase укажите параметры supabaseConfig ниже.
-// Если конфиг пустой, сайт автоматически работает автономно в localStorage без внешних запросов!
+// Модуль хранения данных (Supabase + fallback на localStorage).
+// Если Supabase недоступен, сайт продолжает работать локально.
 
-export const MASTER_PASSWORD = "admin2026";
+export const MASTER_PASSWORD = "aOGE2026p";
 
 export const supabaseConfig = {
   url: "https://umhhntnghqmxbgvmvrvg.supabase.co",
@@ -63,6 +62,8 @@ const KEYS = {
   results: "oge.results.v2",
   session: "oge.session.v2",
   theme: "oge.theme.v1",
+  staff: "oge.staff.v1",
+  staffSession: "oge.staff.session.v1",
 };
 
 const readLocal = (key, fallback) => {
@@ -80,6 +81,132 @@ export const makeId = () => `OGE-${String(Math.floor(1000 + Math.random() * 9000
 
 export async function validateMasterPassword(password) {
   return String(password).trim() === MASTER_PASSWORD;
+}
+
+// ---------------- УЧИТЕЛЯ / ДОСТУП АДМИНА ----------------
+
+function normalizeTeacher(record) {
+  return {
+    id: String(record?.id || record?.code || `T-${Date.now()}`),
+    name: String(record?.name || record?.full_name || record?.teacher_name || "").trim(),
+    login: String(record?.login || record?.username || "").trim().toLowerCase(),
+    password: String(record?.password || "").trim(),
+    createdAt: record?.createdAt || record?.created_at || new Date().toISOString(),
+  };
+}
+
+export async function getTeachers() {
+  const sb = await initSupabase();
+  if (sb) {
+    try {
+      const { data, error } = await sb
+        .from("teachers")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (!error && Array.isArray(data)) {
+        return data.map(normalizeTeacher).filter((t) => t.name && t.login && t.password);
+      }
+    } catch (err) {
+      console.warn("Ошибка загрузки учителей из Supabase, читаем локально:", err);
+    }
+  }
+  return readLocal(KEYS.staff, []).map(normalizeTeacher).filter((t) => t.name && t.login && t.password);
+}
+
+export async function createTeacher({ name, login, password }) {
+  const cleanName = String(name || "").trim();
+  const cleanLogin = String(login || "").trim().toLowerCase();
+  const cleanPassword = String(password || "").trim();
+  if (!cleanName || !cleanLogin || !cleanPassword) {
+    throw new Error("Заполните имя, логин и пароль учителя.");
+  }
+  if (cleanLogin.length < 3) throw new Error("Логин учителя слишком короткий.");
+  if (cleanPassword.length < 4) throw new Error("Пароль учителя слишком короткий.");
+
+  const teachers = await getTeachers();
+  if (teachers.some((t) => t.login === cleanLogin)) {
+    throw new Error("Учитель с таким логином уже существует.");
+  }
+
+  const record = normalizeTeacher({
+    id: crypto.randomUUID ? crypto.randomUUID() : `T-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    name: cleanName,
+    login: cleanLogin,
+    password: cleanPassword,
+    createdAt: new Date().toISOString(),
+  });
+
+  const sb = await initSupabase();
+  if (sb) {
+    try {
+      await sb.from("teachers").insert([{
+        id: record.id,
+        name: record.name,
+        login: record.login,
+        password: record.password,
+        created_at: record.createdAt,
+      }]);
+    } catch (err) {
+      console.warn("Ошибка сохранения учителя в Supabase, сохраняем локально:", err);
+    }
+  }
+
+  const local = readLocal(KEYS.staff, []).map(normalizeTeacher);
+  local.unshift(record);
+  writeLocal(KEYS.staff, local);
+  return record;
+}
+
+export async function deleteTeacher(id) {
+  const target = String(id || "").trim();
+  if (!target) return;
+  const sb = await initSupabase();
+  if (sb) {
+    try {
+      await sb.from("teachers").delete().eq("id", target);
+    } catch (err) {
+      console.warn("Ошибка удаления учителя из Supabase, удаляем локально:", err);
+    }
+  }
+  const local = readLocal(KEYS.staff, []).map(normalizeTeacher).filter((t) => t.id !== target);
+  writeLocal(KEYS.staff, local);
+}
+
+export async function authenticateStaff(password, login = "") {
+  const cleanPassword = String(password || "").trim();
+  const cleanLogin = String(login || "").trim().toLowerCase();
+
+  if (!cleanLogin) {
+    if (await validateMasterPassword(cleanPassword)) {
+      const actor = { role: "admin", name: "Администратор", login: "admin" };
+      writeLocal(KEYS.staffSession, actor);
+      return actor;
+    }
+    throw new Error("Неверный пароль администратора.");
+  }
+
+  const teachers = await getTeachers();
+  const teacher = teachers.find((t) => t.login === cleanLogin && t.password === cleanPassword);
+  if (!teacher) throw new Error("Неверный логин или пароль учителя.");
+  const actor = { role: "teacher", name: teacher.name, login: teacher.login, id: teacher.id };
+  writeLocal(KEYS.staffSession, actor);
+  return actor;
+}
+
+export function getStaffSession() {
+  const raw = readLocal(KEYS.staffSession, null);
+  if (!raw || !raw.role) return null;
+  return {
+    role: raw.role === "admin" ? "admin" : "teacher",
+    name: String(raw.name || "Учитель"),
+    login: String(raw.login || ""),
+    id: raw.id || null,
+  };
+}
+
+export function clearStaffSession() {
+  localStorage.removeItem(KEYS.staffSession);
 }
 
 // ---------------- КОДЫ ДОСТУПА ----------------
@@ -228,6 +355,7 @@ export async function startExam({ code, questions }) {
     studentName: accessCode.studentName || "Ученик",
     className: accessCode.className || "",
     startedAt: Date.now(),
+    updatedAt: Date.now(),
     questions,
     answers: {},
     tabSwitches: 0,
@@ -266,14 +394,73 @@ export async function startExam({ code, questions }) {
 }
 
 export async function getSession() {
-  return readLocal(KEYS.session, null);
+  const local = readLocal(KEYS.session, null);
+  if (!local) return null;
+
+  const sb = await initSupabase();
+  if (sb && local.id) {
+    try {
+      const { data, error } = await sb
+        .from("exam_sessions")
+        .select("*")
+        .eq("id", local.id)
+        .maybeSingle();
+      if (!error && data) {
+        let answers = data.answers;
+        if (typeof answers === "string") {
+          try { answers = JSON.parse(answers); } catch { answers = local.answers || {}; }
+        }
+        const remote = {
+          ...local,
+          answers: answers && typeof answers === "object" ? answers : (local.answers || {}),
+          tabSwitches: Number(data.tab_switches ?? local.tabSwitches ?? 0),
+          lastIndex: Number(data.last_index ?? local.lastIndex ?? 0),
+          updatedAt: new Date(data.updated_at || local.updatedAt || local.startedAt).getTime(),
+          finishedAt: data.finished_at || local.finishedAt || null,
+        };
+        const localUpdated = Number(local.updatedAt || 0);
+        const remoteUpdated = Number(remote.updatedAt || 0);
+        const merged = remoteUpdated >= localUpdated ? remote : local;
+        writeLocal(KEYS.session, merged);
+        return merged;
+      }
+    } catch (err) {
+      console.warn("Ошибка чтения сессии из Supabase, используем localStorage:", err);
+    }
+  }
+  return local;
+}
+
+async function persistSessionToCloud(session) {
+  const sb = await initSupabase();
+  if (!sb || !session?.id) return;
+  try {
+    await sb.from("exam_sessions").upsert([
+      {
+        id: session.id,
+        code: session.code,
+        student_name: session.studentName || "Ученик",
+        class_name: session.className || "",
+        started_at: new Date(session.startedAt).toISOString(),
+        updated_at: new Date(session.updatedAt || Date.now()).toISOString(),
+        last_index: Number(session.lastIndex || 0),
+        tab_switches: Number(session.tabSwitches || 0),
+        answers: session.answers || {},
+        finished_at: session.finishedAt ? new Date(session.finishedAt).toISOString() : null,
+      },
+    ], { onConflict: "id" });
+  } catch (err) {
+    console.warn("Ошибка сохранения сессии в Supabase:", err);
+  }
 }
 
 export async function saveAnswers(answers) {
   const session = await getSession();
   if (!session) return null;
   session.answers = { ...answers };
+  session.updatedAt = Date.now();
   writeLocal(KEYS.session, session);
+  await persistSessionToCloud(session);
   return session;
 }
 
@@ -282,7 +469,9 @@ export async function saveProgress({ answers, lastIndex }) {
   if (!session) return null;
   session.answers = { ...answers };
   session.lastIndex = Number(lastIndex) || 0;
+  session.updatedAt = Date.now();
   writeLocal(KEYS.session, session);
+  await persistSessionToCloud(session);
   return session;
 }
 
@@ -290,7 +479,9 @@ export async function recordTabSwitch() {
   const session = await getSession();
   if (!session) return 0;
   session.tabSwitches = (session.tabSwitches || 0) + 1;
+  session.updatedAt = Date.now();
   writeLocal(KEYS.session, session);
+  await persistSessionToCloud(session);
   return session.tabSwitches;
 }
 
@@ -301,6 +492,12 @@ export async function saveResult(result) {
   const results = readLocal(KEYS.results, []);
   results.push(result);
   writeLocal(KEYS.results, results);
+  const currentSession = readLocal(KEYS.session, null);
+  if (currentSession && currentSession.id) {
+    currentSession.finishedAt = result.finishedAt;
+    currentSession.updatedAt = Date.now();
+    await persistSessionToCloud(currentSession);
+  }
   localStorage.removeItem(KEYS.session);
 
   if (sb) {

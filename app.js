@@ -1,6 +1,5 @@
 import { createExam, normalizeAnswer } from "./generators.js";
 import {
-  validateMasterPassword,
   getCodes,
   getActiveCodes,
   createStudentCodes,
@@ -14,9 +13,13 @@ import {
   clearLocalData,
   getSavedTheme,
   saveTheme,
-  isUsingCloud,
   initSupabase,
-  getSupabaseStatus,
+  authenticateStaff,
+  getStaffSession,
+  clearStaffSession,
+  getTeachers,
+  createTeacher,
+  deleteTeacher,
 } from "./storage.js?v=20261127";
 
 const $ = (selector) => document.querySelector(selector);
@@ -28,6 +31,7 @@ let timerHandle = null;
 let awayActive = false;
 let examFinished = false;
 let inputSaveTimer = null;
+let staffActor = getStaffSession();
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -81,7 +85,7 @@ function initTheme() {
 async function initialize() {
   initTheme();
   await initSupabase();
-  updateStorageIndicator();
+  staffActor = getStaffSession();
 
   const saved = await getSession();
   if (saved) {
@@ -93,26 +97,6 @@ async function initialize() {
     }
     activateExam();
   }
-}
-
-function updateStorageIndicator() {
-  const indicator = $("#storage-indicator");
-  if (!indicator) return;
-  const status = typeof getSupabaseStatus === "function"
-    ? getSupabaseStatus()
-    : { ready: isUsingCloud(), error: null };
-
-  if (status.ready) {
-    indicator.textContent = "Supabase Cloud подключён";
-    indicator.style.color = "var(--primary)";
-    indicator.title = "";
-    return;
-  }
-
-  const err = status.error ? String(status.error) : "инициализация не выполнена или завершилась ошибкой";
-  indicator.textContent = `Локальное хранилище (Supabase: ${err})`;
-  indicator.style.color = "var(--danger-text)";
-  indicator.title = err;
 }
 
 // ---------------- ВХОД УЧЕНИКА (ТОЛЬКО ID) ----------------
@@ -537,21 +521,30 @@ window.addEventListener("focus", () => {
 
 // ---------------- ПАНЕЛЬ УЧИТЕЛЯ (ДАШБОРД + СТАТИСТИКА) ----------------
 
-$("#teacher-open").addEventListener("click", () => {
+$("#teacher-open").addEventListener("click", async () => {
   if (session && !examFinished) return;
+  if (staffActor) {
+    await renderTeacher();
+    return;
+  }
+
   modal(`
     <div class="modal-header">
       <div class="modal-icon" aria-hidden="true">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       </div>
       <div>
-        <h2>Вход в панель учителя</h2>
-        <p>Введите мастер-пароль для доступа к кодам, результатам и аналитике.</p>
+        <h2>Вход в панель</h2>
+        <p>Администратор входит по паролю. Учитель — по логину и паролю.</p>
       </div>
     </div>
     <div class="form-group">
-      <label for="master-password">Мастер-пароль</label>
-      <input id="master-password" type="password" class="task-answer-input" style="max-width:100%" autocomplete="current-password" placeholder="Введите пароль">
+      <label for="staff-login">Логин учителя (для админа оставьте пустым)</label>
+      <input id="staff-login" type="text" class="task-answer-input" style="max-width:100%" autocomplete="username" placeholder="teacher1">
+    </div>
+    <div class="form-group">
+      <label for="staff-password">Пароль</label>
+      <input id="staff-password" type="password" class="task-answer-input" style="max-width:100%" autocomplete="current-password" placeholder="Введите пароль">
     </div>
     <p id="teacher-login-error" class="form-error" aria-live="polite"></p>
     <div class="modal-actions">
@@ -561,23 +554,30 @@ $("#teacher-open").addEventListener("click", () => {
   `);
 
   $("#teacher-cancel").addEventListener("click", clearModal);
-  $("#teacher-login").addEventListener("click", async () => {
-    const password = $("#master-password").value;
-    if (!(await validateMasterPassword(password))) {
-      $("#teacher-login-error").textContent = "Неверный мастер-пароль.";
-      return;
+  const submit = async () => {
+    const login = $("#staff-login").value;
+    const password = $("#staff-password").value;
+    try {
+      staffActor = await authenticateStaff(password, login);
+      clearModal();
+      await renderTeacher();
+    } catch (err) {
+      $("#teacher-login-error").textContent = err.message || "Ошибка входа.";
     }
-    clearModal();
-    await renderTeacher();
-  });
-  $("#master-password").addEventListener("keydown", (event) => {
-    if (event.key === "Enter") $("#teacher-login").click();
-  });
+  };
+  $("#teacher-login").addEventListener("click", submit);
+  $("#staff-password").addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+  $("#staff-login").addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
 });
 
 async function renderTeacher() {
+  staffActor = getStaffSession();
+  if (!staffActor) {
+    showView("login-view");
+    return;
+  }
   showView("teacher-view");
-  const [allCodes, results] = await Promise.all([getCodes(), getResults()]);
+  const [allCodes, results, teachers] = await Promise.all([getCodes(), getResults(), staffActor.role === "admin" ? getTeachers() : Promise.resolve([])]);
   const activeCodes = allCodes.filter((c) => !c.used);
   const sortedResults = [...results].sort((a, b) => new Date(b.finishedAt) - new Date(a.finishedAt));
 
@@ -609,11 +609,12 @@ async function renderTeacher() {
     <div class="teacher-wrap">
       <div class="teacher-header-bar">
         <div class="teacher-header-text">
-          <p class="card-eyebrow">Модуль администратора</p>
-          <h1>Панель учителя</h1>
-          <p class="panel-subtitle">Управление доступом, аналитика и ведомость результатов ОГЭ.</p>
+          <p class="card-eyebrow">${staffActor.role === "admin" ? "Администратор" : "Учитель"}</p>
+          <h1>${staffActor.role === "admin" ? "Панель администратора" : "Панель учителя"}</h1>
+          <p class="panel-subtitle">${escapeHtml(staffActor.name)} · управление доступом, аналитика и результаты ОГЭ.</p>
         </div>
         <div class="teacher-header-actions">
+          <button class="button button-ghost" type="button" id="teacher-logout">Выйти</button>
           <button class="button button-ghost" type="button" id="teacher-home">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h18"/><path d="M9 6 3 12l6 6"/></svg>
             <span>На главную</span>
@@ -677,6 +678,41 @@ async function renderTeacher() {
 
       <div class="teacher-main-grid">
         <div class="teacher-sidebar">
+          ${staffActor.role === "admin" ? `
+          <div class="card">
+            <div class="card-block-head">
+              <h2>Учителя</h2>
+              <p class="panel-subtitle">Назначьте учителей: они смогут входить по своему логину и паролю.</p>
+            </div>
+            <div class="form-group">
+              <label for="new-teacher-name">Имя учителя</label>
+              <input id="new-teacher-name" class="task-answer-input" style="max-width:100%" placeholder="Иванова М.А.">
+            </div>
+            <div class="form-group">
+              <label for="new-teacher-login">Логин</label>
+              <input id="new-teacher-login" class="task-answer-input" style="max-width:100%" placeholder="teacher1" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label for="new-teacher-password">Пароль</label>
+              <input id="new-teacher-password" class="task-answer-input" style="max-width:100%" placeholder="Пароль учителя" autocomplete="new-password">
+            </div>
+            <div class="sidebar-actions">
+              <button class="button button-primary" type="button" id="btn-create-teacher">Добавить учителя</button>
+            </div>
+            <div class="sidebar-section">
+              <div class="sidebar-section-header">
+                <span class="sidebar-section-title">Назначенные учителя <span class="count-chip">${teachers.length}</span></span>
+              </div>
+              <div class="active-codes-list">
+                ${teachers.length ? teachers.map((t) => `
+                  <div class="code-item-row">
+                    <span class="code-student" title="${escapeHtml(t.name)} (${escapeHtml(t.login)})">${escapeHtml(t.name)} · <code>${escapeHtml(t.login)}</code></span>
+                    <button class="button button-ghost button-compact" type="button" data-delete-teacher="${escapeHtml(t.id)}">Удалить</button>
+                  </div>`).join("") : '<div class="empty-note">Учителя не назначены.</div>'}
+              </div>
+            </div>
+          </div>` : ""}
+
           <div class="card">
             <div class="card-block-head">
               <h2>Создать ID для учеников</h2>
@@ -726,12 +762,13 @@ async function renderTeacher() {
               </div>
             </div>
 
+            ${staffActor.role === "admin" ? `
             <div class="sidebar-section sidebar-section-danger">
               <button class="button button-danger button-wide" type="button" id="clear-local-btn">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                 <span>Очистить локальные данные</span>
               </button>
-            </div>
+            </div>` : ""}
           </div>
         </div>
 
@@ -805,6 +842,59 @@ async function renderTeacher() {
 
   // Обработчики панели учителя
   $("#teacher-home").addEventListener("click", () => showView("login-view"));
+  $("#teacher-logout").addEventListener("click", () => {
+    clearStaffSession();
+    staffActor = null;
+    showView("login-view");
+  });
+
+  if (staffActor.role === "admin") {
+    $("#btn-create-teacher")?.addEventListener("click", async () => {
+      const name = $("#new-teacher-name").value.trim();
+      const login = $("#new-teacher-login").value.trim();
+      const password = $("#new-teacher-password").value.trim();
+      try {
+        await createTeacher({ name, login, password });
+        await renderTeacher();
+      } catch (err) {
+        alert(err.message || "Не удалось добавить учителя.");
+      }
+    });
+    document.querySelectorAll("[data-delete-teacher]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-delete-teacher");
+        if (!id) return;
+        if (!confirm("Удалить этого учителя?")) return;
+        await deleteTeacher(id);
+        await renderTeacher();
+      });
+    });
+    $("#clear-local-btn")?.addEventListener("click", () => {
+      modal(`
+        <div class="modal-header">
+          <div class="modal-icon modal-icon-danger" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </div>
+          <div>
+            <h2>Очистить локальные данные?</h2>
+            <p>Будут удалены локальные коды, результаты и учителя на этом устройстве. Действие нельзя отменить.</p>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="button button-ghost" type="button" id="cancel-clear">Отмена</button>
+          <button class="button button-danger" type="button" id="confirm-clear">Очистить</button>
+        </div>
+      `);
+      $("#cancel-clear").addEventListener("click", clearModal);
+      $("#confirm-clear").addEventListener("click", async () => {
+        await clearLocalData();
+        clearModal();
+        clearStaffSession();
+        staffActor = null;
+        showView("login-view");
+      });
+    });
+  }
 
   $("#btn-create-named-codes").addEventListener("click", async () => {
     const rawNames = $("#students-names").value;
@@ -870,30 +960,6 @@ async function renderTeacher() {
   });
 
   $("#download-csv-btn").addEventListener("click", () => downloadCsv(sortedResults));
-
-  $("#clear-local-btn").addEventListener("click", () => {
-    modal(`
-      <div class="modal-header">
-        <div class="modal-icon modal-icon-danger" aria-hidden="true">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-        </div>
-        <div>
-          <h2>Очистить локальные данные?</h2>
-          <p>Будут удалены локальные коды и результаты на этом устройстве. Действие нельзя отменить.</p>
-        </div>
-      </div>
-      <div class="modal-actions">
-        <button class="button button-ghost" type="button" id="cancel-clear">Отмена</button>
-        <button class="button button-danger" type="button" id="confirm-clear">Очистить</button>
-      </div>
-    `);
-    $("#cancel-clear").addEventListener("click", clearModal);
-    $("#confirm-clear").addEventListener("click", async () => {
-      await clearLocalData();
-      clearModal();
-      showView("login-view");
-    });
-  });
 }
 
 function csvCell(value) {
