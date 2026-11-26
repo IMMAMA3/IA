@@ -1,4 +1,4 @@
-import { createExam, normalizeAnswer } from "./generators.js";
+import { createExam, normalizeAnswer, isAnswerCorrect } from "./generators.js";
 import {
   getCodes,
   getActiveCodes,
@@ -350,7 +350,7 @@ async function finishExam(status) {
       number: question.number,
       title: question.title,
       answer: String(rawVal ?? ""),
-      correct: normalizeAnswer(rawVal) === normalizeAnswer(question.answer),
+      correct: isAnswerCorrect(rawVal, question.answer),
     };
   });
 
