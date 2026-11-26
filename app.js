@@ -59,6 +59,8 @@ function clearModal() {
 function applyTheme(theme) {
   document.documentElement.setAttribute("data-theme", theme);
   saveTheme(theme);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", theme === "dark" ? "#0d1522" : "#f4f7fb");
 }
 
 function initTheme() {
@@ -101,15 +103,15 @@ function updateStorageIndicator() {
     : { ready: isUsingCloud(), error: null };
 
   if (status.ready) {
-    indicator.textContent = "🚀 Подключен Supabase Cloud";
+    indicator.textContent = "Supabase Cloud подключён";
     indicator.style.color = "var(--primary)";
     indicator.title = "";
     return;
   }
 
   const err = status.error ? String(status.error) : "инициализация не выполнена или завершилась ошибкой";
-  indicator.textContent = `⚠️ localStorage (Supabase: ${err})`;
-  indicator.style.color = "var(--danger, #c0392b)";
+  indicator.textContent = `Локальное хранилище (Supabase: ${err})`;
+  indicator.style.color = "var(--danger-text)";
   indicator.title = err;
 }
 
@@ -172,8 +174,7 @@ function renderExam() {
   const nav = session.questions
     .map(
       (item, index) =>
-        `<button class="nav-task ${index === currentIndex ? "current" : ""} ${String(session.answers[item.number] ?? "").trim() ? "answered" : ""
-        }" data-index="${index}" aria-label="Задание ${item.number}">${item.number}</button>`
+        `<button class="nav-task ${index === currentIndex ? "current" : ""} ${String(session.answers[item.number] ?? "").trim() ? "answered" : ""}" data-index="${index}" aria-label="Задание ${item.number}">${item.number}</button>`
     )
     .join("");
 
@@ -182,23 +183,26 @@ function renderExam() {
   root.innerHTML = `
     <div class="exam-topbar">
       <div class="student-meta">
-        <div class="student-avatar">${escapeHtml((session.studentName || "У")[0])}</div>
+        <div class="student-avatar" aria-hidden="true">${escapeHtml((session.studentName || "У")[0])}</div>
         <div class="student-meta-text">
-          <b>${escapeHtml(session.studentName || "Ученик")}${session.className ? ` (${escapeHtml(session.className)})` : ""}</b>
+          <b>${escapeHtml(session.studentName || "Ученик")}${session.className ? ` <span style="color:var(--text-muted);font-weight:600">(${escapeHtml(session.className)})</span>` : ""}</b>
           <span>ID: ${escapeHtml(session.code)}</span>
         </div>
       </div>
-      <div id="timer" class="timer-box">30:00</div>
+      <div id="timer" class="timer-box" aria-live="polite">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <span class="timer-value">30:00</span>
+      </div>
     </div>
 
     <div class="exam-layout">
-      <aside class="card task-nav">
-        <div class="nav-header">Навигация по тесту</div>
+      <aside class="card task-nav" aria-label="Навигация по заданиям">
+        <p class="nav-header">Навигация по тесту</p>
         <div class="nav-grid">${nav}</div>
-        <div class="nav-legend">
-          <div class="legend-item"><span class="legend-color" style="background:var(--primary)"></span> Текущий вопрос</div>
-          <div class="legend-item"><span class="legend-color" style="background:var(--success)"></span> Ответ сохранён</div>
-          <div class="legend-item"><span class="legend-color" style="background:var(--border-subtle)"></span> Не отвечено</div>
+        <div class="nav-legend" aria-label="Обозначения">
+          <div class="legend-item"><span class="legend-color legend-color-current" aria-hidden="true"></span><span>Текущий вопрос</span></div>
+          <div class="legend-item"><span class="legend-color legend-color-answered" aria-hidden="true"></span><span>Ответ сохранён</span></div>
+          <div class="legend-item"><span class="legend-color legend-color-empty" aria-hidden="true"></span><span>Не отвечено</span></div>
         </div>
       </aside>
 
@@ -212,25 +216,27 @@ function renderExam() {
 
         <div class="task-answer-box">
           <label for="answer-input">Ответ на задание</label>
-          <input 
-            id="answer-input" 
+          <input
+            id="answer-input"
             class="task-answer-input"
-            type="${inputType}" 
-            inputmode="${inputType === "number" ? "numeric" : "text"}" 
-            autocomplete="off" 
-            spellcheck="false" 
-            value="${escapeHtml(session.answers[question.number] ?? "")}" 
-            placeholder="Введите ответ" 
+            type="${inputType}"
+            inputmode="${inputType === "number" ? "numeric" : "text"}"
+            autocomplete="off"
+            spellcheck="false"
+            value="${escapeHtml(session.answers[question.number] ?? "")}"
+            placeholder="Введите ответ"
             aria-label="Ответ на задание ${question.number}"
           >
         </div>
 
         <div class="task-nav-buttons">
-          <button class="button button-ghost" id="prev-task" ${currentIndex === 0 ? "disabled" : ""}>
-            ← Предыдущее
+          <button class="button button-ghost" type="button" id="prev-task" ${currentIndex === 0 ? "disabled" : ""}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            <span>Предыдущее</span>
           </button>
-          <button class="button button-primary" id="next-task">
-            ${currentIndex === session.questions.length - 1 ? "К проверке" : "Следующее →"}
+          <button class="button button-primary" type="button" id="next-task">
+            <span>${currentIndex === session.questions.length - 1 ? "К проверке" : "Следующее"}</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
           </button>
         </div>
       </article>
@@ -238,12 +244,14 @@ function renderExam() {
 
     <div class="exam-footer-bar">
       <div class="progress-info">
-        <span>Прогресс: <b>${answeredCount} из ${session.questions.length}</b></span>
-        <div class="progress-bar-wrap">
+        <span class="progress-meta">Прогресс: <b>${answeredCount} из ${session.questions.length}</b></span>
+        <div class="progress-bar-wrap" aria-hidden="true">
           <div class="progress-bar-fill" style="width: ${progressPct}%"></div>
         </div>
       </div>
-      <button class="button button-danger" id="finish-exam">Завершить и отправить</button>
+      <button class="button button-danger" type="button" id="finish-exam">
+        <span>Завершить и отправить</span>
+      </button>
     </div>
   `;
 
@@ -270,7 +278,7 @@ function renderExam() {
       if (progressFill) {
         progressFill.style.width = `${Math.round((newAnsweredCount / session.questions.length) * 100)}%`;
       }
-      const progressSpan = $(".progress-info span b");
+      const progressSpan = $(".progress-info .progress-meta b") || $(".progress-info span b");
       if (progressSpan) {
         progressSpan.textContent = `${newAnsweredCount} из ${session.questions.length}`;
       }
@@ -311,9 +319,12 @@ function updateTimer() {
   const remaining = Math.max(0, 30 * 60 * 1000 - (Date.now() - session.startedAt));
   const minutes = Math.floor(remaining / 60000);
   const seconds = Math.floor((remaining % 60000) / 1000);
+  const formatted = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
   const timer = $("#timer");
   if (timer) {
-    timer.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    const valueEl = timer.querySelector(".timer-value");
+    if (valueEl) valueEl.textContent = formatted;
+    else timer.textContent = formatted;
     timer.classList.toggle("urgent", remaining <= 5 * 60 * 1000);
   }
   if (remaining <= 0) finishExam("Время истекло");
@@ -327,13 +338,10 @@ function confirmFinish() {
 
   modal(`
     <h2>Завершить тестирование?</h2>
-    <p>
-      ${unanswered > 0 ? `Внимание: вы не ответили на <b>${unanswered}</b> из 8 заданий.` : "Все 8 заданий заполнены."}
-      После отправки изменить ответы будет невозможно.
-    </p>
+    <p>${unanswered > 0 ? `Вы не ответили на <b>${unanswered}</b> из 8 заданий.` : "Все 8 заданий заполнены."} После отправки изменить ответы будет невозможно.</p>
     <div class="modal-actions">
-      <button class="button button-ghost" id="cancel-modal">Вернуться</button>
-      <button class="button button-primary" id="confirm-finish">Отправить работу</button>
+      <button class="button button-ghost" type="button" id="cancel-modal">Вернуться</button>
+      <button class="button button-primary" type="button" id="confirm-finish">Отправить работу</button>
     </div>
   `);
   $("#cancel-modal").addEventListener("click", clearModal);
@@ -390,19 +398,28 @@ function formatDuration(seconds) {
 
 function showResult(result) {
   showView("result-view");
-  const grade = result.score >= 7 ? "Отлично (Оценка 5)" : result.score >= 5 ? "Хорошо (Оценка 4)" : result.score >= 3 ? "Удовлетворительно (Оценка 3)" : "Требуется повторение (Оценка 2)";
+  const grade =
+    result.score >= 7 ? "Отлично (оценка 5)" :
+    result.score >= 5 ? "Хорошо (оценка 4)" :
+    result.score >= 3 ? "Удовлетворительно (оценка 3)" :
+    "Требуется повторение (оценка 2)";
+  const gradeTone = result.score >= 5 ? "success" : result.score >= 3 ? "warn" : "danger";
 
   $("#result-view").innerHTML = `
     <div class="card result-card">
       <div class="result-header">
-        <div class="result-badge">${result.score >= 5 ? "🎉" : "📚"}</div>
-        <div class="card-eyebrow">РЕЗУЛЬТАТ ТЕСТИРОВАНИЯ</div>
+        <div class="result-badge" aria-hidden="true">
+          ${result.score >= 5
+            ? '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>'
+            : '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>'}
+        </div>
+        <p class="card-eyebrow">Результат тестирования</p>
         <h2>Работа завершена</h2>
       </div>
 
       <div class="result-score-banner">
         <div class="result-big-number">${result.score}<small> / 8</small></div>
-        <div class="result-grade">${grade}</div>
+        <div class="result-grade" data-tone="${gradeTone}">${grade}</div>
       </div>
 
       <div class="result-details-grid">
@@ -420,23 +437,28 @@ function showResult(result) {
         </div>
       </div>
 
-      <h3 style="font-size:18px;margin:24px 0 12px">Разбор заданий</h3>
+      <h3 class="section-title">Разбор заданий</h3>
       <div class="review-list">
         ${result.answers
       .map(
         (item) => `
           <div class="review-row ${item.correct ? "correct" : "wrong"}">
-            <span>Задание ${item.number}: <b>${escapeHtml(item.title)}</b></span>
+            <span class="review-row-main"><span class="review-num">Задание ${item.number}</span><b>${escapeHtml(item.title)}</b></span>
             <span class="review-status-tag">
-              ${item.correct ? "✓ Решено верно" : "✗ Ошибка"}
+              ${item.correct
+                ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>Верно</span>'
+                : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg><span>Ошибка</span>'}
             </span>
           </div>`
       )
       .join("")}
       </div>
 
-      <div class="modal-actions" style="justify-content:center;margin-top:30px">
-        <button class="button button-ghost" id="to-login-btn">Вернуться на главную</button>
+      <div class="result-actions">
+        <button class="button button-ghost" type="button" id="to-login-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h18"/><path d="M9 6 3 12l6 6"/></svg>
+          <span>Вернуться на главную</span>
+        </button>
       </div>
     </div>
   `;
@@ -462,10 +484,17 @@ async function handleDeparture() {
   if (count >= 3) {
     await finishExam("Принудительно (уход со вкладки)");
     modal(`
-      <h2>Тестирование остановлено</h2>
-      <p>Зафиксирован 3-й уход с вкладки тестирования. Ваша работа автоматически завершена и передана учителю со статусом нарушения.</p>
+      <div class="modal-header">
+        <div class="modal-icon modal-icon-danger" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+        </div>
+        <div>
+          <h2>Тестирование остановлено</h2>
+          <p>Зафиксирован 3-й уход с вкладки. Работа автоматически завершена и передана учителю со статусом нарушения.</p>
+        </div>
+      </div>
       <div class="modal-actions">
-        <button class="button button-primary" id="close-forced">Понятно</button>
+        <button class="button button-primary" type="button" id="close-forced">Понятно</button>
       </div>
     `);
     $("#close-forced").addEventListener("click", clearModal);
@@ -473,12 +502,15 @@ async function handleDeparture() {
   }
 
   $("#modal-root").innerHTML = `
-    <div class="warning-screen">
+    <div class="warning-screen" role="alertdialog" aria-modal="true" aria-labelledby="warning-title">
       <div class="warning-card">
-        <div class="warning-icon">⚠️</div>
-        <h2>Не покидайте страницу экзамена!</h2>
-        <p>Зафиксировано переключение окна (нарушение ${count} из 3). При 3-м нарушении тест завершится автоматически без возможности продолжения.</p>
-        <button class="button button-primary" id="return-exam">Вернуться к выполнению</button>
+        <div class="warning-icon" aria-hidden="true">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <p class="warning-eyebrow">Нарушение ${count} из 3</p>
+        <h2 id="warning-title">Не покидайте страницу экзамена</h2>
+        <p>Зафиксировано переключение окна. При 3-м нарушении тест завершится автоматически без возможности продолжения.</p>
+        <button class="button button-primary" type="button" id="return-exam">Вернуться к выполнению</button>
       </div>
     </div>
   `;
@@ -508,16 +540,23 @@ window.addEventListener("focus", () => {
 $("#teacher-open").addEventListener("click", () => {
   if (session && !examFinished) return;
   modal(`
-    <h2>Вход в панель учителя</h2>
-    <p>Введите мастер-пароль преподавателя для доступа к управлению кодами и подробной аналитике класса:</p>
+    <div class="modal-header">
+      <div class="modal-icon" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </div>
+      <div>
+        <h2>Вход в панель учителя</h2>
+        <p>Введите мастер-пароль для доступа к кодам, результатам и аналитике.</p>
+      </div>
+    </div>
     <div class="form-group">
       <label for="master-password">Мастер-пароль</label>
-      <input id="master-password" type="password" class="code-input" style="font-size:15px;letter-spacing:normal" autocomplete="current-password" placeholder="admin2026">
+      <input id="master-password" type="password" class="task-answer-input" style="max-width:100%" autocomplete="current-password" placeholder="Введите пароль">
     </div>
-    <p id="teacher-login-error" class="form-error"></p>
+    <p id="teacher-login-error" class="form-error" aria-live="polite"></p>
     <div class="modal-actions">
-      <button class="button button-ghost" id="teacher-cancel">Отмена</button>
-      <button class="button button-primary" id="teacher-login">Войти</button>
+      <button class="button button-ghost" type="button" id="teacher-cancel">Отмена</button>
+      <button class="button button-primary" type="button" id="teacher-login">Войти</button>
     </div>
   `);
 
@@ -569,44 +608,63 @@ async function renderTeacher() {
   $("#teacher-view").innerHTML = `
     <div class="teacher-wrap">
       <div class="teacher-header-bar">
-        <div>
-          <span class="card-eyebrow">МОДУЛЬ АДМИНИСТРАТОРА</span>
-          <h1>Панель учителя и аналитика ОГЭ</h1>
+        <div class="teacher-header-text">
+          <p class="card-eyebrow">Модуль администратора</p>
+          <h1>Панель учителя</h1>
+          <p class="panel-subtitle">Управление доступом, аналитика и ведомость результатов ОГЭ.</p>
         </div>
-        <div style="display:flex;gap:10px;align-items:center">
-          <button class="button button-ghost" id="teacher-home">На главную</button>
+        <div class="teacher-header-actions">
+          <button class="button button-ghost" type="button" id="teacher-home">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h18"/><path d="M9 6 3 12l6 6"/></svg>
+            <span>На главную</span>
+          </button>
         </div>
       </div>
 
-      <!-- Виджеты общей сводки -->
-      <div class="analytics-grid">
-        <div class="analytic-card">
-          <span>Сдано работ</span>
+      <div class="analytics-grid" aria-label="Сводная аналитика">
+        <article class="analytic-card">
+          <div class="analytic-card-head">
+            <span class="analytic-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6"/><path d="M23 11h-6"/></svg></span>
+            <span>Сдано работ</span>
+          </div>
           <div class="analytic-number highlight">${totalCompleted}</div>
-        </div>
-        <div class="analytic-card">
-          <span>Средний балл (из 8)</span>
-          <div class="analytic-number">${avgScore}</div>
-        </div>
-        <div class="analytic-card">
-          <span>Максимальный балл</span>
-          <div class="analytic-number">${maxScore} / 8</div>
-        </div>
-        <div class="analytic-card">
-          <span>Уходов со вкладки всего</span>
-          <div class="analytic-number" style="color:var(--danger)">${totalTabSwitches}</div>
-        </div>
+        </article>
+        <article class="analytic-card">
+          <div class="analytic-card-head">
+            <span class="analytic-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 16 4-4 3 3 5-7"/></svg></span>
+            <span>Средний балл</span>
+          </div>
+          <div class="analytic-number">${avgScore}<small class="analytic-suffix"> / 8</small></div>
+        </article>
+        <article class="analytic-card">
+          <div class="analytic-card-head">
+            <span class="analytic-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></span>
+            <span>Максимальный балл</span>
+          </div>
+          <div class="analytic-number">${maxScore}<small class="analytic-suffix"> / 8</small></div>
+        </article>
+        <article class="analytic-card">
+          <div class="analytic-card-head">
+            <span class="analytic-icon analytic-icon-danger" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+            <span>Уходов со вкладки</span>
+          </div>
+          <div class="analytic-number danger">${totalTabSwitches}</div>
+        </article>
       </div>
 
-      <!-- График успешности решения по номерам заданий -->
-      <div class="task-stats-panel">
-        <h3>Успешность решения по заданиям первой части (%)</h3>
+      <section class="task-stats-panel" aria-label="Успешность по заданиям">
+        <div class="panel-head">
+          <div>
+            <h3 class="panel-title">Успешность по заданиям</h3>
+            <p class="panel-subtitle">Процент правильных ответов по каждому номеру первой части.</p>
+          </div>
+        </div>
         <div class="task-bars-grid">
           ${taskStats
       .map(
         (t) => `
             <div class="task-bar-col">
-              <div class="task-bar-track">
+              <div class="task-bar-track" aria-hidden="true">
                 <div class="task-bar-fill" style="height: ${Math.max(6, t.correctPct)}%"></div>
               </div>
               <span class="task-bar-label">№${t.num}</span>
@@ -615,36 +673,42 @@ async function renderTeacher() {
       )
       .join("")}
         </div>
-      </div>
+      </section>
 
       <div class="teacher-main-grid">
-        <!-- Левая колонка: Генератор кодов с именами учеников -->
         <div class="teacher-sidebar">
           <div class="card">
-            <h2>Создать ID для учеников</h2>
-            <p style="font-size:12.5px;color:var(--text-muted);margin:0 0 12px">
-              Введите имена (по одному на строку). Формат: «Имя Ф.» или «Иванов И.»:
-            </p>
+            <div class="card-block-head">
+              <h2>Создать ID для учеников</h2>
+              <p class="panel-subtitle">Введите имена по одному на строку. Формат: «Имя Ф.» или «Иванов И.».</p>
+            </div>
+
             <div class="form-group">
               <label for="students-class">Класс (по умолчанию)</label>
-              <input id="students-class" placeholder="9А" value="9А" style="font-size:13.5px">
+              <input id="students-class" placeholder="9А" value="9А">
             </div>
             <div class="form-group">
               <label for="students-names">Список учеников</label>
-              <textarea 
-                id="students-names" 
-                class="student-input-textarea" 
+              <textarea
+                id="students-names"
+                class="student-input-textarea"
                 placeholder="Иванов И.&#10;Петрова А.&#10;Сидоров Д.&#10;Смирнов М."
               ></textarea>
             </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <button class="button button-primary" id="btn-create-named-codes" style="flex:1">Создать ID</button>
+            <div class="sidebar-actions">
+              <button class="button button-primary" type="button" id="btn-create-named-codes">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                <span>Создать ID</span>
+              </button>
             </div>
 
-            <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border-subtle)">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-                <span style="font-size:13px;font-weight:700">Активные ID (${activeCodes.length})</span>
-                <button class="button button-ghost" id="copy-active-codes" style="padding:4px 8px;font-size:11.5px">Скопировать</button>
+            <div class="sidebar-section">
+              <div class="sidebar-section-header">
+                <span class="sidebar-section-title">Активные ID <span class="count-chip">${activeCodes.length}</span></span>
+                <button class="button button-ghost button-compact" type="button" id="copy-active-codes">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Скопировать</span>
+                </button>
               </div>
               <div class="active-codes-list">
                 ${activeCodes.length
@@ -653,31 +717,37 @@ async function renderTeacher() {
           (c) => `
                     <div class="code-item-row">
                       <span class="code-badge">${escapeHtml(c.code)}</span>
-                      <span class="code-student">${escapeHtml(c.studentName || "Ученик")} (${escapeHtml(c.className || "9А")})</span>
+                      <span class="code-student" title="${escapeHtml(c.studentName || "Ученик")} (${escapeHtml(c.className || "9А")})">${escapeHtml(c.studentName || "Ученик")} (${escapeHtml(c.className || "9А")})</span>
                     </div>`
         )
         .join("")
-      : '<div style="padding:14px;text-align:center;color:var(--text-muted)">Нет активных ID. Создайте их выше.</div>'
+      : '<div class="empty-note">Нет активных ID. Создайте их выше.</div>'
     }
               </div>
             </div>
 
-            <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border-subtle)">
-              <button class="button button-danger" id="clear-local-btn" style="width:100%;font-size:12.5px">
-                Очистить локальные данные
+            <div class="sidebar-section sidebar-section-danger">
+              <button class="button button-danger button-wide" type="button" id="clear-local-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                <span>Очистить локальные данные</span>
               </button>
             </div>
           </div>
         </div>
 
-        <!-- Правая колонка: Таблица всех результатов и экспорт в CSV -->
         <div class="teacher-content">
           <div class="card">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
-              <h2>Ведомость результатов (${sortedResults.length})</h2>
-              <button class="button button-primary" id="download-csv-btn">
-                <span>Скачать ведомость (.csv)</span>
-              </button>
+            <div class="results-header">
+              <div>
+                <h2>Ведомость результатов</h2>
+                <p class="panel-subtitle">Всего записей: ${sortedResults.length}</p>
+              </div>
+              <div class="results-header-actions">
+                <button class="button button-primary" type="button" id="download-csv-btn">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+                  <span>Скачать ведомость (.csv)</span>
+                </button>
+              </div>
             </div>
 
             <div class="table-responsive">
@@ -686,15 +756,15 @@ async function renderTeacher() {
                 <table class="table-results">
                   <thead>
                     <tr>
-                      <th>Ученик (Имя Ф.)</th>
-                      <th>Класс</th>
-                      <th>ID</th>
-                      <th>Дата</th>
-                      <th>Время</th>
-                      <th>Баллы</th>
-                      <th>Ответы по заданиям</th>
-                      <th>Выходы</th>
-                      <th>Статус</th>
+                      <th class="col-student">Ученик (Имя Ф.)</th>
+                      <th class="col-class">Класс</th>
+                      <th class="col-code">ID</th>
+                      <th class="col-date">Дата</th>
+                      <th class="col-time">Время</th>
+                      <th class="col-score">Баллы</th>
+                      <th class="col-answers">Ответы по заданиям</th>
+                      <th class="col-exits">Выходы</th>
+                      <th class="col-status">Статус</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -702,19 +772,19 @@ async function renderTeacher() {
         .map(
           (res) => `
                       <tr>
-                        <td><b>${escapeHtml(res.studentName || res.fullName || "—")}</b></td>
-                        <td>${escapeHtml(res.className || "—")}</td>
-                        <td><code>${escapeHtml(res.code)}</code></td>
-                        <td>${escapeHtml(new Date(res.finishedAt).toLocaleString("ru-RU"))}</td>
-                        <td>${formatDuration(res.durationSeconds)}</td>
-                        <td class="score-cell">${res.score} / 8</td>
-                        <td class="answers-cell">
+                        <td class="col-student"><b>${escapeHtml(res.studentName || res.fullName || "—")}</b></td>
+                        <td class="col-class">${escapeHtml(res.className || "—")}</td>
+                        <td class="col-code"><code>${escapeHtml(res.code)}</code></td>
+                        <td class="col-date">${escapeHtml(new Date(res.finishedAt).toLocaleString("ru-RU"))}</td>
+                        <td class="col-time">${formatDuration(res.durationSeconds)}</td>
+                        <td class="col-score score-cell">${res.score} / 8</td>
+                        <td class="col-answers answers-cell">
                           ${(res.answers || [])
               .map((a) => `№${a.number}: «${escapeHtml(a.answer || "—")}» ${a.correct ? "✓" : "✗"}`)
               .join(" · ")}
                         </td>
-                        <td><span style="color:${res.tabSwitches > 0 ? "var(--danger)" : "inherit"};font-weight:700">${res.tabSwitches}</span></td>
-                        <td>
+                        <td class="col-exits"><span style="color:${res.tabSwitches > 0 ? "var(--danger-text)" : "inherit"};font-weight:700">${res.tabSwitches}</span></td>
+                        <td class="col-status">
                           <span class="status-badge ${res.status.includes("Принудительно") ? "forced" : "completed"}">
                             ${escapeHtml(res.status)}
                           </span>
@@ -724,7 +794,7 @@ async function renderTeacher() {
         .join("")}
                   </tbody>
                 </table>`
-      : '<div style="padding:40px;text-align:center;color:var(--text-muted)">Пока никто не завершил тестирование. Раздайте ID ученикам!</div>'
+      : '<div class="empty-state">Пока никто не завершил тестирование. Раздайте ID ученикам.</div>'
     }
             </div>
           </div>
@@ -754,10 +824,10 @@ async function renderTeacher() {
       $("#students-names").value = "";
       await renderTeacher();
       modal(`
-        <h2>ID успешно созданы!</h2>
+        <h2>ID успешно созданы</h2>
         <p>Создано кодов: <b>${created.length}</b>. Они привязаны к указанным именам и готовы к выдаче ученикам.</p>
         <div class="modal-actions">
-          <button class="button button-primary" id="modal-ok">Отлично</button>
+          <button class="button button-primary" type="button" id="modal-ok">Отлично</button>
         </div>
       `);
       $("#modal-ok").addEventListener("click", clearModal);
@@ -781,10 +851,18 @@ async function renderTeacher() {
       alert(`Скопировано ${active.length} кодов в буфер обмена!`);
     } catch {
       modal(`
-        <h2>Список активных кодов</h2>
-        <textarea style="width:100%;height:140px" readonly>${escapeHtml(text)}</textarea>
+        <div class="modal-header">
+          <div class="modal-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </div>
+          <div>
+            <h2>Список активных кодов</h2>
+            <p>Скопируйте коды вручную.</p>
+          </div>
+        </div>
+        <textarea class="student-input-textarea" style="min-height:160px" readonly>${escapeHtml(text)}</textarea>
         <div class="modal-actions">
-          <button class="button button-primary" id="close-copy">Закрыть</button>
+          <button class="button button-primary" type="button" id="close-copy">Закрыть</button>
         </div>
       `);
       $("#close-copy").addEventListener("click", clearModal);
@@ -795,11 +873,18 @@ async function renderTeacher() {
 
   $("#clear-local-btn").addEventListener("click", () => {
     modal(`
-      <h2>Очистить данные?</h2>
-      <p>Будут удалены все локально сохранённые коды доступа и результаты с этого браузера. Это действие нельзя отменить.</p>
+      <div class="modal-header">
+        <div class="modal-icon modal-icon-danger" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </div>
+        <div>
+          <h2>Очистить локальные данные?</h2>
+          <p>Будут удалены локальные коды и результаты на этом устройстве. Действие нельзя отменить.</p>
+        </div>
+      </div>
       <div class="modal-actions">
-        <button class="button button-ghost" id="cancel-clear">Отмена</button>
-        <button class="button button-danger" id="confirm-clear">Очистить всё</button>
+        <button class="button button-ghost" type="button" id="cancel-clear">Отмена</button>
+        <button class="button button-danger" type="button" id="confirm-clear">Очистить</button>
       </div>
     `);
     $("#cancel-clear").addEventListener("click", clearModal);
