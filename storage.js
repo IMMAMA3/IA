@@ -194,6 +194,18 @@ function eventToRow(event) {
   };
 }
 
+function normalizeTeacher(record) {
+  const login = String(record?.login || record?.username || "").trim().toLowerCase();
+  const name = String(record?.name || record?.displayName || record?.student_name || login || "Учитель").trim();
+  return {
+    id: String(record?.id || record?.used_at || record?.code || login || `t-${Date.now()}`),
+    name,
+    login,
+    password: String(record?.password || ""),
+    createdAt: record?.createdAt || record?.created_at || new Date().toISOString(),
+  };
+}
+
 function isTeacherCodeRecord(row) {
   return String(row?.class_name || row?.className || "") === "__STAFF__" || String(row?.code || "").startsWith("TCHR-");
 }

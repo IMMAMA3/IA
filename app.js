@@ -25,7 +25,7 @@ import {
   getProfileHistory,
   getEvents,
   createEvent,
-} from "./storage.js?v=20261127i";
+} from "./storage.js?v=20261127j";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
