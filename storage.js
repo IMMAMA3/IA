@@ -95,23 +95,117 @@ function normalizeTeacher(record) {
   };
 }
 
-export async function getTeachers() {
-  const sb = await initSupabase();
-  if (sb) {
-    try {
-      const { data, error } = await sb
-        .from("teachers")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(200);
-      if (!error && Array.isArray(data)) {
-        return data.map(normalizeTeacher).filter((t) => t.name && t.login && t.password);
-      }
-    } catch (err) {
-      console.warn("Ошибка загрузки учителей из Supabase, читаем локально:", err);
+function isTeacherCodeRecord(row) {
+  return String(row?.class_name || row?.className || "") === "__STAFF__" || String(row?.code || "").startsWith("TCHR-");
+}
+
+function teacherFromCodeRow(row) {
+  let payload = {};
+  try { payload = JSON.parse(row?.session_id || "{}"); } catch { payload = {}; }
+  return normalizeTeacher({
+    id: payload.id || row?.used_at || row?.code,
+    name: row?.student_name || payload.name,
+    login: payload.login || String(row?.code || "").replace(/^TCHR-/i, "").toLowerCase(),
+    password: payload.password || "",
+    createdAt: row?.created_at || payload.createdAt,
+  });
+}
+
+function teacherToCodeRow(t) {
+  const teacher = normalizeTeacher(t);
+  return {
+    code: `TCHR-${teacher.login.toUpperCase()}`,
+    student_name: teacher.name,
+    class_name: "__STAFF__",
+    used: false,
+    created_at: teacher.createdAt,
+    used_at: teacher.id,
+    session_id: JSON.stringify({ id: teacher.id, login: teacher.login, password: teacher.password, name: teacher.name, createdAt: teacher.createdAt }),
+  };
+}
+
+function mergeTeachers(...lists) {
+  const map = new Map();
+  for (const list of lists) {
+    for (const item of list || []) {
+      const t = normalizeTeacher(item);
+      if (!t.login || !t.password || !t.name) continue;
+      const prev = map.get(t.login);
+      if (!prev || new Date(t.createdAt || 0) > new Date(prev.createdAt || 0)) map.set(t.login, t);
     }
   }
-  return readLocal(KEYS.staff, []).map(normalizeTeacher).filter((t) => t.name && t.login && t.password);
+  return [...map.values()].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+}
+
+async function getTeachersFromCodeFallback(sb) {
+  if (!sb) return [];
+  try {
+    const { data, error } = await sb
+      .from("access_codes")
+      .select("*")
+      .eq("class_name", "__STAFF__")
+      .limit(200);
+    if (error || !Array.isArray(data)) return [];
+    return data.filter(isTeacherCodeRecord).map(teacherFromCodeRow);
+  } catch {
+    return [];
+  }
+}
+
+async function upsertTeacherCodeFallback(sb, teacher) {
+  if (!sb) return false;
+  const row = teacherToCodeRow(teacher);
+  try {
+    const { error } = await sb.from("access_codes").upsert([row], { onConflict: "code" });
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+async function deleteTeacherCodeFallback(sb, teacher) {
+  if (!sb) return false;
+  const code = `TCHR-${String(teacher.login || "").toUpperCase()}`;
+  try {
+    const { error } = await sb.from("access_codes").delete().eq("code", code);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+export async function getTeachers() {
+  const local = readLocal(KEYS.staff, []).map(normalizeTeacher).filter((t) => t.name && t.login && t.password);
+  const sb = await initSupabase();
+  if (!sb) return local;
+
+  let cloud = [];
+  let cloudOk = false;
+  try {
+    const { data, error } = await sb.from("teachers").select("*").order("created_at", { ascending: false }).limit(200);
+    if (!error && Array.isArray(data)) {
+      cloud = data.map(normalizeTeacher).filter((t) => t.name && t.login && t.password);
+      cloudOk = true;
+    }
+  } catch (err) {
+    console.warn("Ошибка загрузки учителей из Supabase:", err);
+  }
+
+  const fallback = await getTeachersFromCodeFallback(sb);
+  const merged = mergeTeachers(cloud, fallback, local);
+
+  // heal: push local-only teachers to cloud/fallback
+  for (const t of merged) {
+    const inCloud = cloud.some((c) => c.login === t.login);
+    const inFallback = fallback.some((c) => c.login === t.login);
+    if (cloudOk && !inCloud) {
+      try { await sb.from("teachers").upsert([{ id: t.id, name: t.name, login: t.login, password: t.password, created_at: t.createdAt }], { onConflict: "id" }); } catch {}
+    }
+    if (!inCloud && !inFallback) await upsertTeacherCodeFallback(sb, t);
+  }
+
+  writeLocal(KEYS.staff, merged);
+  return merged;
 }
 
 export async function createTeacher({ name, login, password }) {
@@ -138,38 +232,43 @@ export async function createTeacher({ name, login, password }) {
   });
 
   const sb = await initSupabase();
+  let cloudSaved = false;
   if (sb) {
     try {
-      await sb.from("teachers").insert([{
+      const { error } = await sb.from("teachers").insert([{
         id: record.id,
         name: record.name,
         login: record.login,
         password: record.password,
         created_at: record.createdAt,
       }]);
+      cloudSaved = !error;
     } catch (err) {
-      console.warn("Ошибка сохранения учителя в Supabase, сохраняем локально:", err);
+      console.warn("Ошибка сохранения учителя в Supabase:", err);
     }
+    if (!cloudSaved) cloudSaved = await upsertTeacherCodeFallback(sb, record);
   }
 
-  const local = readLocal(KEYS.staff, []).map(normalizeTeacher);
+  const local = readLocal(KEYS.staff, []).map(normalizeTeacher).filter((t) => t.login !== record.login);
   local.unshift(record);
   writeLocal(KEYS.staff, local);
+  if (sb && !cloudSaved) {
+    console.warn("Учитель сохранён только локально:", record.login);
+  }
   return record;
 }
 
 export async function deleteTeacher(id) {
   const target = String(id || "").trim();
   if (!target) return;
+  const localBefore = readLocal(KEYS.staff, []).map(normalizeTeacher);
+  const victim = localBefore.find((t) => t.id === target);
   const sb = await initSupabase();
   if (sb) {
-    try {
-      await sb.from("teachers").delete().eq("id", target);
-    } catch (err) {
-      console.warn("Ошибка удаления учителя из Supabase, удаляем локально:", err);
-    }
+    try { await sb.from("teachers").delete().eq("id", target); } catch {}
+    if (victim) await deleteTeacherCodeFallback(sb, victim);
   }
-  const local = readLocal(KEYS.staff, []).map(normalizeTeacher).filter((t) => t.id !== target);
+  const local = localBefore.filter((t) => t.id !== target);
   writeLocal(KEYS.staff, local);
 }
 
