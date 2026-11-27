@@ -25,7 +25,7 @@ import {
   getProfileHistory,
   getEvents,
   createEvent,
-} from "./storage.js?v=20261127h";
+} from "./storage.js?v=20261127i";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
@@ -712,6 +712,7 @@ $("#teacher-open").addEventListener("click", async () => {
 });
 
 async function renderTeacher() {
+  try {
   staffActor = getStaffSession();
   if (!staffActor) {
     showView("login-view");
@@ -1031,8 +1032,8 @@ async function renderTeacher() {
   `;
 
   // Обработчики панели учителя
-  $("#teacher-home").addEventListener("click", () => showView("login-view"));
-  $("#teacher-logout").addEventListener("click", () => {
+  $("#teacher-home")?.addEventListener("click", () => showView("login-view"));
+  $("#teacher-logout")?.addEventListener("click", () => {
     clearStaffSession();
     staffActor = null;
     showView("login-view");
@@ -1136,7 +1137,7 @@ async function renderTeacher() {
     }
   });
 
-  $("#copy-active-codes").addEventListener("click", async () => {
+  $("#copy-active-codes")?.addEventListener("click", async () => {
     const active = activeCodes;
     if (!active.length) {
       alert("Нет активных кодов.");
@@ -1169,7 +1170,12 @@ async function renderTeacher() {
     }
   });
 
-  $("#download-csv-btn").addEventListener("click", () => downloadCsv(sortedResults));
+  $("#download-csv-btn")?.addEventListener("click", () => downloadCsv(sortedResults));
+  } catch (err) {
+    console.error("renderTeacher error", err);
+    $("#teacher-view").innerHTML = `<div class="card" style="margin:24px"><h2>Ошибка панели учителя</h2><p class="form-error" style="display:block">${escapeHtml(err?.message || String(err))}</p><button class="button button-primary" id="teacher-back-error">На главную</button></div>`;
+    $("#teacher-back-error")?.addEventListener("click", () => showView("login-view"));
+  }
 }
 
 function csvCell(value) {
