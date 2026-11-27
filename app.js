@@ -1,6 +1,5 @@
 ﻿import { createExam, normalizeAnswer, isAnswerCorrect } from "./generators.js";
 import {
-  getCodes,
   getActiveCodes,
   createStudentCodes,
   startExam,
@@ -20,7 +19,13 @@ import {
   getTeachers,
   createTeacher,
   deleteTeacher,
-} from "./storage.js?v=20261127b";
+  getLocalProfile,
+  registerProfile,
+  loginProfile,
+  getProfileHistory,
+  getEvents,
+  createEvent,
+} from "./storage.js?v=20261127c";
 
 const $ = (selector) => document.querySelector(selector);
 const views = ["login-view", "exam-view", "result-view", "teacher-view"];
@@ -32,6 +37,9 @@ let awayActive = false;
 let examFinished = false;
 let inputSaveTimer = null;
 let staffActor = getStaffSession();
+let studentProfile = getLocalProfile();
+let loginMode = "profile"; // profile | event
+let selectedEventFilter = "";
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -85,6 +93,14 @@ function initTheme() {
 async function initialize() {
   initTheme();
   staffActor = getStaffSession();
+  studentProfile = getLocalProfile();
+  bindLoginModeSwitch();
+  setLoginMode("profile");
+  if (studentProfile?.code) {
+    $("#profile-name").value = studentProfile.name || "";
+    $("#profile-code").value = studentProfile.code || "";
+  }
+  renderProfileHistory();
 
   try {
     await Promise.race([
@@ -114,31 +130,99 @@ async function initialize() {
   }
 }
 
+
 // ---------------- ВХОД УЧЕНИКА (ТОЛЬКО ID) ----------------
+
+function setLoginMode(mode) {
+  loginMode = mode === "event" ? "event" : "profile";
+  $$("#login-mode-switch [data-mode]").forEach((btn) => btn.classList.toggle("active", btn.dataset.mode === loginMode));
+  $("#profile-fields")?.classList.toggle("hidden", loginMode !== "profile");
+  $("#event-fields")?.classList.toggle("hidden", loginMode !== "event");
+  $("#login-error").textContent = "";
+}
+
+function bindLoginModeSwitch() {
+  $$("#login-mode-switch [data-mode]").forEach((btn) => btn.addEventListener("click", () => setLoginMode(btn.dataset.mode)));
+  $("#profile-register")?.addEventListener("change", (e) => {
+    const reg = e.target.checked;
+    $("#profile-code-wrap")?.classList.toggle("hidden", reg);
+    $("#profile-class-wrap")?.classList.toggle("hidden", !reg);
+    $("#profile-created-code")?.classList.add("hidden");
+  });
+}
+
+async function renderProfileHistory() {
+  const box = $("#profile-history");
+  if (!box) return;
+  if (!studentProfile?.code) {
+    box.innerHTML = `<div class="empty-note">Создайте профиль или войдите, чтобы видеть историю.</div>`;
+    return;
+  }
+  box.innerHTML = `<div class="empty-note">Загружаем историю…</div>`;
+  try {
+    const history = await getProfileHistory(studentProfile.code);
+    if (!history.length) {
+      box.innerHTML = `<div class="empty-note">Пока нет завершённых попыток.</div>`;
+      return;
+    }
+    box.innerHTML = history.slice(0, 8).map((r) => `
+      <div class="history-row">
+        <div>
+          <b>${r.score}/8</b> <span class="muted">· ${escapeHtml(new Date(r.finishedAt).toLocaleString("ru-RU"))}</span>
+          <div class="muted small">${r.eventCode ? `Событие: ${escapeHtml(r.eventTitle || r.eventCode)}` : "Тренировка"}</div>
+        </div>
+        <span class="status-badge ${String(r.status).includes("Принуд") ? "forced" : "completed"}">${escapeHtml(r.status)}</span>
+      </div>`).join("");
+  } catch {
+    box.innerHTML = `<div class="empty-note">Не удалось загрузить историю.</div>`;
+  }
+}
 
 $("#login-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
-  const code = String(form.get("code") || "").trim().toUpperCase();
   const errorEl = $("#login-error");
   const submitBtn = $("#submit-login");
-
   errorEl.textContent = "";
-  if (!code) return;
-
   submitBtn.disabled = true;
   submitBtn.style.opacity = "0.7";
 
   try {
-    const created = await startExam({
-      code,
-      questions: createExam(),
-    });
+    let code = "";
+    let profile = null;
+    let eventCode = "";
+
+    if (loginMode === "event") {
+      eventCode = String(form.get("eventCode") || "").trim().toUpperCase();
+      code = String(form.get("eventStudentCode") || "").trim().toUpperCase();
+      if (!/^EVT-\d{6}$/.test(eventCode)) throw new Error("Введите корректный ID события (EVT-123456).");
+      if (!/^\d{6}$/.test(code)) throw new Error("Введите 6-значный ID ученика.");
+    } else {
+      const name = String(form.get("profileName") || "").trim();
+      code = String(form.get("profileCode") || "").trim().toUpperCase();
+      const isRegister = $("#profile-register")?.checked;
+      if (isRegister) {
+        const className = String(form.get("profileClass") || "").trim();
+        profile = await registerProfile({ name, className });
+        code = profile.code;
+        studentProfile = profile;
+        $("#profile-code").value = profile.code;
+        const codeBox = $("#profile-created-code");
+        if (codeBox) { codeBox.textContent = `Ваш ID профиля: ${profile.code}. Сохраните его для входа.`; codeBox.classList.remove("hidden"); }
+      } else {
+        if (!/^\d{6}$/.test(code)) throw new Error("Введите 6-значный ID профиля.");
+        profile = await loginProfile({ code, name });
+        studentProfile = profile;
+      }
+      renderProfileHistory();
+    }
+
+    const created = await startExam({ code, questions: createExam(), eventCode, profile });
     session = created;
     currentIndex = 0;
     activateExam();
   } catch (error) {
-    errorEl.textContent = error.message || "Не удалось войти по данному ID.";
+    errorEl.textContent = error.message || "Не удалось войти.";
   } finally {
     submitBtn.disabled = false;
     submitBtn.style.opacity = "1";
@@ -151,7 +235,9 @@ function activateExam() {
   examFinished = false;
   showView("exam-view");
   document.body.classList.add("in-exam");
-  document.addEventListener("contextmenu", blockContextMenu);
+  if (session.mode !== "practice") {
+    document.addEventListener("contextmenu", blockContextMenu);
+  }
   renderExam();
   updateTimer();
   clearInterval(timerHandle);
@@ -178,6 +264,9 @@ function renderExam() {
     .join("");
 
   const inputType = question.answerType === "number" ? "number" : "text";
+  const modeLabel = session.mode === "event"
+    ? `Событие: ${escapeHtml(session.eventTitle || session.eventCode || "")}`
+    : "Тренировка";
 
   root.innerHTML = `
     <div class="exam-topbar">
@@ -185,7 +274,7 @@ function renderExam() {
         <div class="student-avatar" aria-hidden="true">${escapeHtml((session.studentName || "У")[0])}</div>
         <div class="student-meta-text">
           <b>${escapeHtml(session.studentName || "Ученик")}${session.className ? ` <span style="color:var(--text-muted);font-weight:600">(${escapeHtml(session.className)})</span>` : ""}</b>
-          <span>ID: ${escapeHtml(session.code)}</span>
+          <span>${modeLabel} · ID: ${escapeHtml(session.code)}</span>
         </div>
       </div>
       <div id="timer" class="timer-box" aria-live="polite">
@@ -374,6 +463,10 @@ async function finishExam(status) {
     code: session.code,
     studentName: session.studentName || "Ученик",
     className: session.className || "",
+    profileCode: session.profileCode || "",
+    eventCode: session.eventCode || "",
+    eventTitle: session.eventTitle || "",
+    mode: session.mode || "practice",
     startedAt: new Date(session.startedAt).toISOString(),
     finishedAt: new Date().toISOString(),
     durationSeconds: Math.max(0, Math.floor((Date.now() - session.startedAt) / 1000)),
@@ -383,7 +476,11 @@ async function finishExam(status) {
     answers: checked,
   };
 
-  await saveResult(result);
+  if (result.mode === "practice") {
+    await saveResult(result);
+  } else {
+    await saveResult(result);
+  }
   document.body.classList.remove("in-exam");
   document.removeEventListener("contextmenu", blockContextMenu);
   session = null;
@@ -412,8 +509,8 @@ function showResult(result) {
             ? '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>'
             : '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>'}
         </div>
-        <p class="card-eyebrow">Результат тестирования</p>
-        <h2>Работа завершена</h2>
+        <p class="card-eyebrow">${result.mode === "practice" ? "Результат тренировки" : "Результат тестирования"}</p>
+        <h2>${result.mode === "practice" ? "Тренировка завершена" : "Работа завершена"}</h2>
       </div>
 
       <div class="result-score-banner">
@@ -431,8 +528,8 @@ function showResult(result) {
           <b>${formatDuration(result.durationSeconds)}</b>
         </div>
         <div class="result-detail-box">
-          <span>Уходов со вкладки</span>
-          <b>${result.tabSwitches}</b>
+          <span>${result.mode === "practice" ? "Режим" : "ID / событие"}</span>
+          <b>${escapeHtml(result.mode === "practice" ? "Тренировка" : `${result.code}${result.eventCode ? ` · ${result.eventCode}` : ""}`)}</b>
         </div>
       </div>
 
@@ -471,6 +568,7 @@ function showResult(result) {
 
 function registerDeparture() {
   if (!session || examFinished || awayActive) return;
+  if (session.mode !== "event") return; // античит только для событий
   awayActive = true;
   handleDeparture();
 }
@@ -592,9 +690,18 @@ async function renderTeacher() {
     return;
   }
   showView("teacher-view");
-  const [allCodes, results, teachers] = await Promise.all([getCodes(), getResults(), staffActor.role === "admin" ? getTeachers() : Promise.resolve([])]);
+  const events = await getEvents();
+  const selectedEventCode = window.__selectedEventCode || (events[0]?.code || "");
+  window.__selectedEventCode = selectedEventCode;
+  const [allCodes, results, teachers] = await Promise.all([
+    getActiveCodes(selectedEventCode),
+    getResults(selectedEventCode),
+    staffActor.role === "admin" ? getTeachers() : Promise.resolve([]),
+  ]);
   const activeCodes = allCodes.filter((c) => !c.used);
-  const sortedResults = [...results].sort((a, b) => new Date(b.finishedAt) - new Date(a.finishedAt));
+  const selectedEvent = events.find((e) => e.code === selectedEventCode) || null;
+  const filteredResults = selectedEventFilter ? results.filter((r) => r.eventCode === selectedEventFilter) : results;
+  const sortedResults = [...filteredResults].sort((a, b) => new Date(b.finishedAt) - new Date(a.finishedAt));
 
   // Аналитические агрегаты
   const totalCompleted = sortedResults.length;
@@ -668,6 +775,34 @@ async function renderTeacher() {
         </article>
       </div>
 
+      <section class="task-stats-panel" aria-label="События">
+        <div class="panel-head">
+          <div>
+            <h3 class="panel-title">События / контрольные</h3>
+            <p class="panel-subtitle">Создайте событие, сообщите ученикам ID события. В экзамене защита от списывания включена, в тренировке — нет.</p>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end;margin-bottom:16px">
+          <div class="form-group" style="margin:0">
+            <label for="event-title">Название события</label>
+            <input id="event-title" class="task-answer-input" style="max-width:100%" placeholder="Пробник 9А, 28.11">
+          </div>
+          <button class="button button-primary" type="button" id="btn-create-event">Создать событие</button>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+          <button class="button ${selectedEventFilter === "" ? "button-primary" : "button-ghost"} button-compact" type="button" data-event-filter="">Все результаты</button>
+          ${events.map((e) => `<button class="button ${selectedEventFilter === e.code ? "button-primary" : "button-ghost"} button-compact" type="button" data-event-filter="${escapeHtml(e.code)}">${escapeHtml(e.code)}</button>`).join("")}
+        </div>
+        <div class="active-codes-list">
+          ${events.length ? events.map((e) => `
+            <div class="code-item-row">
+              <span class="code-badge">${escapeHtml(e.code)}</span>
+              <span class="code-student" title="${escapeHtml(e.title)}">${escapeHtml(e.title)} · ${e.active ? "активно" : "закрыто"}</span>
+              <button class="button button-ghost button-compact" type="button" data-toggle-event="${escapeHtml(e.code)}" data-active="${e.active ? "1" : "0"}">${e.active ? "Закрыть" : "Открыть"}</button>
+            </div>`).join("") : '<div class="empty-note">Событий пока нет.</div>'}
+        </div>
+      </section>
+
       <section class="task-stats-panel" aria-label="Успешность по заданиям">
         <div class="panel-head">
           <div>
@@ -693,6 +828,27 @@ async function renderTeacher() {
 
       <div class="teacher-main-grid">
         <div class="teacher-sidebar">
+          <div class="card">
+            <div class="card-block-head">
+              <h2>События</h2>
+              <p class="panel-subtitle">Создайте событие, раздайте его ID и 6-значные ID учеников. Статистика и античит работают внутри события.</p>
+            </div>
+            <div class="form-group">
+              <label for="event-title">Название события</label>
+              <input id="event-title" class="task-answer-input" style="max-width:100%" placeholder="Пробник 9А, март">
+            </div>
+            <div class="sidebar-actions">
+              <button class="button button-primary" type="button" id="btn-create-event">Создать событие</button>
+            </div>
+            <div class="form-group" style="margin-top:12px">
+              <label for="event-select">Активное событие</label>
+              <select id="event-select" class="task-answer-input" style="max-width:100%">
+                ${events.length ? events.map((e) => `<option value="${escapeHtml(e.code)}" ${e.code===selectedEventCode?"selected":""}>${escapeHtml(e.title)} (${escapeHtml(e.code)})</option>`).join("") : `<option value="">Нет событий</option>`}
+              </select>
+            </div>
+            ${selectedEvent ? `<p class="form-note">ID события: <b>${escapeHtml(selectedEvent.code)}</b></p>` : `<p class="form-note">Сначала создайте событие.</p>`}
+          </div>
+
           ${staffActor.role === "admin" ? `
           <div class="card">
             <div class="card-block-head">
@@ -728,28 +884,24 @@ async function renderTeacher() {
             </div>
           </div>` : ""}
 
-          <div class="card">
+                    <div class="card">
             <div class="card-block-head">
-              <h2>Создать ID для учеников</h2>
-              <p class="panel-subtitle">Введите имена по одному на строку. Формат: «Имя Ф.» или «Иванов И.».</p>
+              <h2>ID учеников для события</h2>
+              <p class="panel-subtitle">6-значные коды. Создавайте их внутри выбранного события.</p>
             </div>
 
             <div class="form-group">
               <label for="students-class">Класс (по умолчанию)</label>
-              <input id="students-class" placeholder="9А" value="9А">
+              <input id="students-class" class="task-answer-input" style="max-width:100%" placeholder="9А" value="9А">
             </div>
             <div class="form-group">
               <label for="students-names">Список учеников</label>
-              <textarea
-                id="students-names"
-                class="student-input-textarea"
-                placeholder="Иванов И.&#10;Петрова А.&#10;Сидоров Д.&#10;Смирнов М."
-              ></textarea>
+              <textarea id="students-names" class="student-input-textarea" placeholder="Иванов И.&#10;Петрова А.&#10;Сидоров Д."></textarea>
             </div>
             <div class="sidebar-actions">
-              <button class="button button-primary" type="button" id="btn-create-named-codes">
+              <button class="button button-primary" type="button" id="btn-create-named-codes" ${selectedEvent ? "" : "disabled"}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-                <span>Создать ID</span>
+                <span>Создать 6-значные ID</span>
               </button>
             </div>
 
@@ -811,6 +963,7 @@ async function renderTeacher() {
                       <th class="col-student">Ученик (Имя Ф.)</th>
                       <th class="col-class">Класс</th>
                       <th class="col-code">ID</th>
+                      <th class="col-event">Событие</th>
                       <th class="col-date">Дата</th>
                       <th class="col-time">Время</th>
                       <th class="col-score">Баллы</th>
@@ -827,6 +980,7 @@ async function renderTeacher() {
                         <td class="col-student"><b>${escapeHtml(res.studentName || res.fullName || "—")}</b></td>
                         <td class="col-class">${escapeHtml(res.className || "—")}</td>
                         <td class="col-code"><code>${escapeHtml(res.code)}</code></td>
+                        <td class="col-event">${res.eventCode ? `<div><b>${escapeHtml(res.eventTitle || "Событие")}</b><div class="muted small">${escapeHtml(res.eventCode)}</div></div>` : '<span class="muted">Тренировка</span>'}</td>
                         <td class="col-date">${escapeHtml(new Date(res.finishedAt).toLocaleString("ru-RU"))}</td>
                         <td class="col-time">${formatDuration(res.durationSeconds)}</td>
                         <td class="col-score score-cell">${res.score} / 8</td>
@@ -835,7 +989,7 @@ async function renderTeacher() {
               .map((a) => `№${a.number}: «${escapeHtml(a.answer || "—")}» ${a.correct ? "✓" : "✗"}`)
               .join(" · ")}
                         </td>
-                        <td class="col-exits"><span style="color:${res.tabSwitches > 0 ? "var(--danger-text)" : "inherit"};font-weight:700">${res.tabSwitches}</span></td>
+                        <td class="col-exits"><span style="color:${res.tabSwitches > 0 ? "var(--danger-text)" : "inherit"};font-weight:700">${res.mode === "practice" ? "—" : res.tabSwitches}</span></td>
                         <td class="col-status">
                           <span class="status-badge ${res.status.includes("Принудительно") ? "forced" : "completed"}">
                             ${escapeHtml(res.status)}
@@ -846,7 +1000,7 @@ async function renderTeacher() {
         .join("")}
                   </tbody>
                 </table>`
-      : '<div class="empty-state">Пока никто не завершил тестирование. Раздайте ID ученикам.</div>'
+      : '<div class="empty-state">Пока нет результатов по выбранному фильтру.</div>'
     }
             </div>
           </div>
@@ -861,6 +1015,37 @@ async function renderTeacher() {
     clearStaffSession();
     staffActor = null;
     showView("login-view");
+  });
+
+  $("#btn-create-event")?.addEventListener("click", async () => {
+    const title = $("#event-title").value.trim();
+    try {
+      const ev = await createEvent({ title, owner: staffActor.name });
+      window.__selectedEventCode = ev.code;
+      await renderTeacher();
+    } catch (err) { alert(err.message || "Не удалось создать событие."); }
+  });
+  $("#event-select")?.addEventListener("change", async (e) => {
+    window.__selectedEventCode = e.target.value;
+    await renderTeacher();
+  });
+  $("#btn-create-event")?.addEventListener("click", async () => {
+    const title = $("#event-title")?.value?.trim();
+    try {
+      await createEvent({ title, owner: staffActor.name });
+      await renderTeacher();
+    } catch (e) { alert(e.message || "Не удалось создать событие."); }
+  });
+  document.querySelectorAll("[data-event-filter]").forEach((btn) => {
+    btn.addEventListener("click", async () => { selectedEventFilter = btn.getAttribute("data-event-filter") || ""; await renderTeacher(); });
+  });
+  document.querySelectorAll("[data-toggle-event]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const code = btn.getAttribute("data-toggle-event");
+      const active = btn.getAttribute("data-active") === "1";
+      await setEventActive(code, !active);
+      await renderTeacher();
+    });
   });
 
   if (staffActor.role === "admin") {
@@ -911,29 +1096,21 @@ async function renderTeacher() {
     });
   }
 
-  $("#btn-create-named-codes").addEventListener("click", async () => {
+  $("#btn-create-named-codes")?.addEventListener("click", async () => {
     const rawNames = $("#students-names").value;
     const defaultCls = $("#students-class").value.trim() || "9А";
-    const lines = rawNames
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
-
-    if (lines.length === 0) {
-      alert("Пожалуйста, введите хотя бы одно имя ученика (например, 'Иванов И.').");
-      return;
-    }
-
+    const lines = rawNames.split("\n").map((s) => s.trim()).filter(Boolean);
+    if (!selectedEvent) { alert("Сначала создайте или выберите событие."); return; }
+    if (lines.length === 0) { alert("Введите хотя бы одно имя ученика."); return; }
     try {
-      const created = await createStudentCodes(lines, defaultCls);
+      const created = await createStudentCodes(lines, defaultCls, selectedEvent);
       $("#students-names").value = "";
       await renderTeacher();
       modal(`
-        <h2>ID успешно созданы</h2>
-        <p>Создано кодов: <b>${created.length}</b>. Они привязаны к указанным именам и готовы к выдаче ученикам.</p>
-        <div class="modal-actions">
-          <button class="button button-primary" type="button" id="modal-ok">Отлично</button>
-        </div>
+        <h2>ID созданы</h2>
+        <p>Событие: <b>${escapeHtml(selectedEvent.title)}</b> (${escapeHtml(selectedEvent.code)})</p>
+        <p>Создано 6-значных ID: <b>${created.length}</b>.</p>
+        <div class="modal-actions"><button class="button button-primary" type="button" id="modal-ok">Отлично</button></div>
       `);
       $("#modal-ok").addEventListener("click", clearModal);
     } catch (err) {
@@ -986,7 +1163,9 @@ function downloadCsv(results) {
   const header = [
     "Имя Ф.",
     "Класс",
-    "Использованный ID",
+    "ID",
+    "Событие",
+    "Режим",
     "Дата начала",
     "Дата завершения",
     "Затраченное время",
@@ -1009,6 +1188,8 @@ function downloadCsv(results) {
         res.studentName || res.fullName || "",
         res.className || "",
         res.code,
+        res.eventTitle || res.eventCode || "",
+        res.mode || "",
         new Date(res.startedAt).toLocaleString("ru-RU"),
         new Date(res.finishedAt).toLocaleString("ru-RU"),
         formatDuration(res.durationSeconds),

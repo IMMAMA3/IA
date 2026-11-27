@@ -71,7 +71,12 @@ const KEYS = {
   theme: "oge.theme.v1",
   staff: "oge.staff.v1",
   staffSession: "oge.staff.session.v1",
+  profile: "oge.profile.v1",
+  events: "oge.events.v1",
 };
+
+const PROFILE_MARK = "__PROFILE__";
+const EVENT_MARK = "__EVENT__";
 
 const readLocal = (key, fallback) => {
   try {
@@ -84,7 +89,8 @@ const readLocal = (key, fallback) => {
 
 const writeLocal = (key, value) => localStorage.setItem(key, JSON.stringify(value));
 
-export const makeId = () => `OGE-${String(Math.floor(1000 + Math.random() * 9000))}`;
+export const makeId = () => String(Math.floor(100000 + Math.random() * 900000));
+export const makeEventId = () => `EVT-${String(Math.floor(100000 + Math.random() * 900000))}`;
 
 export async function validateMasterPassword(password) {
   return String(password).trim() === MASTER_PASSWORD;
@@ -92,13 +98,99 @@ export async function validateMasterPassword(password) {
 
 // ---------------- УЧИТЕЛЯ / ДОСТУП АДМИНА ----------------
 
-function normalizeTeacher(record) {
+function isProfileCode(code) {
+  return /^\d{6}$/.test(String(code || "").trim());
+}
+
+function normalizeProfile(record) {
+  const code = String(record?.code || "").trim().toUpperCase();
   return {
-    id: String(record?.id || record?.code || `T-${Date.now()}`),
-    name: String(record?.name || record?.full_name || record?.teacher_name || "").trim(),
-    login: String(record?.login || record?.username || "").trim().toLowerCase(),
-    password: String(record?.password || "").trim(),
+    code,
+    name: String(record?.name || record?.student_name || record?.studentName || record?.fullName || "Ученик").trim(),
+    className: String(record?.className || record?.class_name || "").trim(),
     createdAt: record?.createdAt || record?.created_at || new Date().toISOString(),
+  };
+}
+
+function normalizeEvent(record) {
+  const code = String(record?.code || record?.eventCode || record?.id || "").trim().toUpperCase();
+  return {
+    code,
+    title: String(record?.title || record?.name || "Событие").trim(),
+    owner: String(record?.owner || record?.ownerName || "").trim(),
+    createdAt: record?.createdAt || record?.created_at || new Date().toISOString(),
+    active: record?.active === false ? false : true,
+  };
+}
+
+function isEventRow(row) {
+  return String(row?.class_name || "") === EVENT_MARK || String(row?.code || "").startsWith("EVT-");
+}
+
+function isProfileRow(row) {
+  if (isTeacherCodeRecord(row) || isEventRow(row)) return false;
+  const code = String(row?.code || "").trim().toUpperCase();
+  const sid = String(row?.session_id || "");
+  return String(row?.class_name || "") === PROFILE_MARK || sid.startsWith("PROFILE:") || isProfileCode(code);
+}
+
+function isStaffRow(row) {
+  const code = String(row?.code || "");
+  const cls = String(row?.class_name || "");
+  return code.startsWith("TCHR-") || cls === "__STAFF__" || cls === "STAFF" || cls === "__TEACHER__";
+}
+function isServiceRow(row) {
+  return isTeacherCodeRecord(row) || isEventRow(row) || isProfileRow(row) || isStaffRow(row);
+}
+
+function profileFromRow(row) {
+  let payload = {};
+  const rawSid = String(row?.session_id || "");
+  try { payload = JSON.parse(rawSid.replace(/^PROFILE:/, "") || "{}"); } catch { payload = {}; }
+  return normalizeProfile({
+    code: row?.code,
+    name: row?.student_name || payload.name,
+    className: payload.className || "",
+    createdAt: row?.created_at || payload.createdAt,
+  });
+}
+
+function profileToRow(profile) {
+  const p = normalizeProfile(profile);
+  return {
+    code: p.code,
+    student_name: p.name,
+    class_name: PROFILE_MARK,
+    used: false,
+    created_at: p.createdAt,
+    used_at: null,
+    session_id: `PROFILE:${JSON.stringify({ name: p.name, className: p.className, createdAt: p.createdAt })}`,
+  };
+}
+
+function eventFromRow(row) {
+  let payload = {};
+  const rawSid = String(row?.session_id || "");
+  try { payload = JSON.parse(rawSid.replace(/^EVENT:/, "") || "{}"); } catch { payload = {}; }
+  return normalizeEvent({
+    code: row?.code,
+    title: row?.student_name || payload.title,
+    owner: payload.owner || "",
+    createdAt: row?.created_at || payload.createdAt,
+    active: payload.active !== false && row?.used !== true,
+  });
+}
+
+function eventToRow(event) {
+  const e = normalizeEvent(event);
+  return {
+    code: e.code,
+    student_name: e.title,
+    class_name: EVENT_MARK,
+    used: !e.active,
+    created_at: e.createdAt,
+    used_at: null,
+    session_id: `EVENT:${JSON.stringify({ title: e.title, owner: e.owner, createdAt: e.createdAt, active: e.active })}`,
   };
 }
 
@@ -325,61 +417,69 @@ export function clearStaffSession() {
 
 // ---------------- КОДЫ ДОСТУПА ----------------
 
-export async function getCodes() {
+export async function getCodes(eventCode = "") {
+  const normalizedEvent = String(eventCode || "").trim().toUpperCase();
   const sb = await initSupabase();
   if (sb) {
     try {
-      const { data, error } = await sb
-        .from("access_codes")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(100);
+      let query = sb.from("access_codes").select("*").order("created_at", { ascending: false }).limit(200);
+      const { data, error } = await query;
 
       if (data && !error) {
         return data
-          .filter((doc) => String(doc.class_name || "") !== "__STAFF__" && !String(doc.code || "").startsWith("TCHR-"))
-          .map((doc) => ({
-          code: doc.code,
-          studentName: doc.student_name,
-          className: doc.class_name || "",
-          used: Boolean(doc.used),
-          createdAt: doc.created_at,
-          usedAt: doc.used_at || null,
-          sessionId: doc.session_id || null,
-        }));
+          .filter((doc) => !isServiceRow(doc))
+          .filter((doc) => !normalizedEvent || String(doc.session_id || "").includes(`"eventCode":"${normalizedEvent}"`) || String(doc.session_id || "").includes(`EVENT:${normalizedEvent}`))
+          .map((doc) => {
+            let payload = {};
+            try { payload = JSON.parse(doc.session_id || "{}"); } catch { payload = {}; }
+            return {
+              code: doc.code,
+              studentName: doc.student_name,
+              className: doc.class_name || "",
+              used: Boolean(doc.used),
+              createdAt: doc.created_at,
+              usedAt: doc.used_at || null,
+              sessionId: doc.session_id || null,
+              eventCode: payload.eventCode || "",
+              eventTitle: payload.eventTitle || "",
+              profileCode: payload.profileCode || "",
+            };
+          });
       }
     } catch (err) {
       console.warn("Ошибка загрузки кодов из Supabase, читаем локальные:", err);
     }
   }
-  return readLocal(KEYS.codes, []).filter((c) => String(c.className || "") !== "__STAFF__" && !String(c.code || "").startsWith("TCHR-"));
+  return readLocal(KEYS.codes, [])
+    .filter((c) => String(c.className || "") !== "__STAFF__" && !String(c.code || "").startsWith("TCHR-"))
+    .filter((c) => !normalizedEvent || c.eventCode === normalizedEvent);
 }
 
-export async function getActiveCodes() {
-  const codes = await getCodes();
+export async function getActiveCodes(eventCode = "") {
+  const codes = await getCodes(eventCode);
   return codes.filter((code) => !code.used);
 }
 
-// Создание кодов для списка учеников ("Имя Ф.")
-export async function createStudentCodes(studentsList, defaultClass = "") {
+// Создание кодов для события (список учеников)
+export async function createStudentCodes(studentsList, defaultClass = "", eventInfo = null) {
   const sb = await initSupabase();
-  const existing = await getCodes();
-  const known = new Set(existing.map((item) => item.code));
+  const existing = await getCodesRaw(sb);
+  const known = new Set(existing.map((item) => String(item.code || "").toUpperCase()));
 
   const itemsToCreate = Array.isArray(studentsList) ? studentsList : [studentsList];
   const newCodes = [];
+  const normalizedEvent = eventInfo ? normalizeEvent(eventInfo) : null;
 
   for (const item of itemsToCreate) {
-    let name = typeof item === "string" ? item.trim() : (item.fullName || "").trim();
-    let cls = typeof item === "string" ? defaultClass.trim() : (item.className || defaultClass).trim();
+    const name = typeof item === "string" ? item.trim() : (item.fullName || "").trim();
+    const cls = typeof item === "string" ? String(defaultClass || "").trim() : (item.className || defaultClass || "").trim();
     if (!name) continue;
 
     let code = makeId();
-    while (known.has(code)) {
-      code = makeId();
-    }
+    while (known.has(code)) code = makeId();
     known.add(code);
 
+    const payload = normalizedEvent ? { eventCode: normalizedEvent.code, eventTitle: normalizedEvent.title } : {};
     const record = {
       code,
       studentName: name,
@@ -387,27 +487,21 @@ export async function createStudentCodes(studentsList, defaultClass = "") {
       used: false,
       createdAt: new Date().toISOString(),
       usedAt: null,
-      sessionId: null,
+      sessionId: Object.keys(payload).length ? JSON.stringify(payload) : null,
+      eventCode: normalizedEvent?.code || "",
+      eventTitle: normalizedEvent?.title || "",
     };
     newCodes.push(record);
 
-    if (sb) {
-      try {
-        await sb.from("access_codes").insert([
-          {
-            code: record.code,
-            student_name: record.studentName,
-            class_name: record.className,
-            used: false,
-            created_at: record.createdAt,
-            used_at: null,
-            session_id: null,
-          },
-        ]);
-      } catch (err) {
-        console.error("Ошибка сохранения кода в Supabase:", err);
-      }
-    }
+    await upsertCodeRow(sb, {
+      code: record.code,
+      student_name: record.studentName,
+      class_name: record.className,
+      used: false,
+      created_at: record.createdAt,
+      used_at: null,
+      session_id: record.sessionId,
+    });
   }
 
   const allLocal = [...readLocal(KEYS.codes, []), ...newCodes];
@@ -417,52 +511,71 @@ export async function createStudentCodes(studentsList, defaultClass = "") {
 
 // ---------------- ЭКЗАМЕНАЦИОННАЯ СЕССИЯ ----------------
 
-export async function startExam({ code, questions }) {
-  const normalizedCode = String(code).trim().toUpperCase();
+export async function startExam({ code, questions, eventCode = "", profile = null, mode = "exam" }) {
+  const normalizedCode = String(code || "").trim().toUpperCase();
+  const normalizedEvent = String(eventCode || "").trim().toUpperCase();
   const sb = await initSupabase();
 
   let accessCode = null;
+  let profileCode = "";
 
-  if (sb) {
-    try {
-      const { data, error } = await sb
-        .from("access_codes")
-        .select("*")
-        .eq("code", normalizedCode)
-        .single();
-
-      if (data && !error) {
-        if (data.used) {
-          throw new Error("Код не найден или уже использован.");
-        }
-        accessCode = {
-          code: data.code,
-          studentName: data.student_name,
-          className: data.class_name || "",
-          used: data.used,
-          createdAt: data.created_at,
-          usedAt: data.used_at,
-          sessionId: data.session_id,
-        };
-      }
-    } catch (err) {
-      if (err.message && err.message.includes("уже был")) throw err;
-      console.warn("Проверка в Supabase не удалась, ищем локально:", err);
+  if (isProfileCode(normalizedCode) && !normalizedEvent) {
+    const rows = await getCodesRaw(sb);
+    const pRow = rows.find((r) => String(r.code || "").toUpperCase() === normalizedCode && isProfileRow(r));
+    if (!pRow) throw new Error("Профиль с таким ID не найден.");
+    const p = profileFromRow(pRow);
+    const suppliedName = String(profile?.name || "").trim();
+    if (suppliedName && p.name.toLowerCase().replace(/\s+/g, " ") !== suppliedName.toLowerCase().replace(/\s+/g, " ")) {
+      throw new Error("Имя не совпадает с профилем.");
     }
-  }
+    accessCode = { code: p.code, studentName: p.name, className: p.className || "Тренировка", used: false, isProfile: true, eventCode: "", eventTitle: "" };
+    profileCode = p.code;
+    saveLocalProfile(p);
+  } else {
+    if (sb) {
+      try {
+        const { data, error } = await sb.from("access_codes").select("*").eq("code", normalizedCode).single();
+        if (data && !error && !isServiceRow(data)) {
+          if (data.used) throw new Error("Данный ID доступа уже использован.");
+          let payload = {};
+          try { payload = JSON.parse(data.session_id || "{}"); } catch { payload = {}; }
+          accessCode = {
+            code: data.code,
+            studentName: data.student_name,
+            className: data.class_name || "",
+            used: Boolean(data.used),
+            eventCode: payload.eventCode || "",
+            eventTitle: payload.eventTitle || "",
+          };
+        }
+      } catch (err) {
+        if (err.message && err.message.includes("использован")) throw err;
+        console.warn("Проверка в Supabase не удалась, ищем локально:", err);
+      }
+    }
 
-  const localCodes = readLocal(KEYS.codes, []);
-  const localIndex = localCodes.findIndex((item) => item.code === normalizedCode);
+    if (!accessCode) {
+      const localCodes = readLocal(KEYS.codes, []);
+      const found = localCodes.find((item) => String(item.code || "").toUpperCase() === normalizedCode);
+      if (found) {
+        let payload = {};
+        try { payload = JSON.parse(found.sessionId || "{}"); } catch { payload = {}; }
+        accessCode = { ...found, eventCode: found.eventCode || payload.eventCode || "", eventTitle: found.eventTitle || payload.eventTitle || "" };
+      }
+    }
 
-  if (!accessCode && localIndex !== -1) {
-    accessCode = localCodes[localIndex];
-  }
+    if (!accessCode) throw new Error("Код доступа не найден. Проверьте ID.");
+    if (accessCode.used) throw new Error("Данный ID доступа уже использован.");
 
-  if (!accessCode) {
-    throw new Error("Код доступа не найден в системе. Обратитесь к учителю.");
-  }
-  if (accessCode.used) {
-    throw new Error("Данный ID доступа уже использован в экзамене.");
+    if (normalizedEvent) {
+      const event = await findEventByCode(normalizedEvent);
+      if (!event) throw new Error("Событие с таким ID не найдено или неактивно.");
+      if (accessCode.eventCode && accessCode.eventCode !== normalizedEvent) throw new Error("Этот ID привязан к другому событию.");
+      accessCode.eventCode = normalizedEvent;
+      accessCode.eventTitle = event.title;
+    } else if (accessCode.eventCode) {
+      throw new Error("Этот ID нужно вводить через ID события.");
+    }
   }
 
   const session = {
@@ -470,6 +583,10 @@ export async function startExam({ code, questions }) {
     code: normalizedCode,
     studentName: accessCode.studentName || "Ученик",
     className: accessCode.className || "",
+    profileCode,
+    eventCode: accessCode.eventCode || "",
+    eventTitle: accessCode.eventTitle || "",
+    mode: accessCode.eventCode ? "event" : "practice",
     startedAt: Date.now(),
     updatedAt: Date.now(),
     questions,
@@ -478,30 +595,26 @@ export async function startExam({ code, questions }) {
     lastIndex: 0,
   };
 
-  accessCode.used = true;
-  accessCode.usedAt = new Date(session.startedAt).toISOString();
-  accessCode.sessionId = session.id;
-
-  if (localIndex !== -1) {
-    localCodes[localIndex] = accessCode;
+  if (!accessCode.isProfile) {
+    accessCode.used = true;
+    accessCode.usedAt = new Date(session.startedAt).toISOString();
+    const localCodes = readLocal(KEYS.codes, []);
+    const localIndex = localCodes.findIndex((item) => String(item.code || "").toUpperCase() === normalizedCode);
+    const stored = { ...accessCode, sessionId: JSON.stringify({ sessionId: session.id, eventCode: session.eventCode, eventTitle: session.eventTitle, profileCode: session.profileCode }) };
+    if (localIndex !== -1) localCodes[localIndex] = { ...localCodes[localIndex], ...stored };
+    else localCodes.push(stored);
     writeLocal(KEYS.codes, localCodes);
-  } else {
-    localCodes.push(accessCode);
-    writeLocal(KEYS.codes, localCodes);
-  }
 
-  if (sb) {
-    try {
-      await sb
-        .from("access_codes")
-        .update({
+    if (sb) {
+      try {
+        await sb.from("access_codes").update({
           used: true,
           used_at: accessCode.usedAt,
-          session_id: session.id,
-        })
-        .eq("code", normalizedCode);
-    } catch (err) {
-      console.error("Ошибка обновления статуса кода в Supabase:", err);
+          session_id: stored.sessionId,
+        }).eq("code", normalizedCode);
+      } catch (err) {
+        console.error("Ошибка обновления статуса кода в Supabase:", err);
+      }
     }
   }
 
@@ -631,6 +744,10 @@ export async function saveResult(result) {
           tab_switches: result.tabSwitches,
           status: result.status,
           answers: JSON.stringify(result.answers || []),
+          event_code: result.eventCode || null,
+          event_title: result.eventTitle || null,
+          profile_code: result.profileCode || null,
+          mode: result.mode || null,
         },
       ]);
     } catch (err) {
@@ -640,7 +757,195 @@ export async function saveResult(result) {
   return result;
 }
 
-export async function getResults() {
+export async function getEvents() {
+  const local = readLocal(KEYS.events, []).map(normalizeEvent).filter((e) => e.code);
+  const sb = await initSupabase();
+  if (!sb) return local.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  let cloud = [];
+  try {
+    const { data, error } = await sb.from("access_codes").select("*").eq("class_name", EVENT_MARK).limit(200);
+    if (!error && Array.isArray(data)) cloud = data.filter(isEventRow).map(eventFromRow);
+  } catch {}
+  const map = new Map();
+  for (const item of [...cloud, ...local]) map.set(item.code, item);
+  const merged = [...map.values()].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  writeLocal(KEYS.events, merged);
+  return merged;
+}
+
+export async function findEventByCode(eventCode) {
+  const code = String(eventCode || "").trim().toUpperCase();
+  if (!/^EVT-\d{6}$/.test(code)) return null;
+  const events = await getEvents();
+  return events.find((e) => e.code === code) || null;
+}
+
+// ---------------- ПРОФИЛИ УЧЕНИКОВ ----------------
+
+export function getLocalProfile() {
+  const raw = readLocal(KEYS.profile, null);
+  if (!raw || !raw.code) return null;
+  return normalizeProfile(raw);
+}
+
+export function saveLocalProfile(profile) {
+  const p = normalizeProfile(profile);
+  if (!isProfileCode(p.code) || !p.name) return null;
+  writeLocal(KEYS.profile, p);
+  return p;
+}
+
+export function clearLocalProfile() {
+  localStorage.removeItem(KEYS.profile);
+}
+
+async function upsertCodeRow(sb, row) {
+  if (!sb) return false;
+  try { const { error } = await sb.from("access_codes").upsert([row], { onConflict: "code" }); if (!error) return true; } catch {}
+  try { const { error } = await sb.from("access_codes").insert([row]); if (!error) return true; } catch {}
+  try { const { error } = await sb.from("access_codes").update(row).eq("code", row.code); return !error; } catch { return false; }
+}
+
+async function getCodesRaw(sb) {
+  const client = sb || await initSupabase();
+  if (!client) return readLocal(KEYS.codes, []);
+  try {
+    const { data, error } = await client.from("access_codes").select("*").order("created_at", { ascending: false }).limit(500);
+    if (!error && Array.isArray(data)) return data;
+  } catch {}
+  return readLocal(KEYS.codes, []);
+}
+
+export async function registerProfile({ name, className = "" }) {
+  const cleanName = String(name || "").trim();
+  const cleanClass = String(className || "").trim();
+  if (cleanName.length < 2) throw new Error("Введите имя и фамилию.");
+  const sb = await initSupabase();
+  const existing = new Set();
+  try { (await getCodesRaw(sb)).forEach((r) => existing.add(String(r.code || "").toUpperCase())); } catch {}
+  let code = makeId();
+  while (existing.has(code)) code = makeId();
+  const profile = normalizeProfile({ code, name: cleanName, className: cleanClass, createdAt: new Date().toISOString() });
+  await upsertCodeRow(sb, profileToRow(profile));
+  saveLocalProfile(profile);
+  return profile;
+}
+
+export async function loginProfile({ code, name }) {
+  const normalizedCode = String(code || "").trim().toUpperCase();
+  const cleanName = String(name || "").trim();
+  if (!isProfileCode(normalizedCode)) throw new Error("ID профиля должен состоять из 6 цифр.");
+  if (cleanName.length < 2) throw new Error("Введите имя.");
+  const sb = await initSupabase();
+  const rows = await getCodesRaw(sb);
+  const row = rows.find((r) => String(r.code || "").toUpperCase() === normalizedCode && isProfileRow(r));
+  if (!row) throw new Error("Профиль с таким ID не найден.");
+  const profile = profileFromRow(row);
+  const same = profile.name.toLowerCase().replace(/\s+/g, " ") === cleanName.toLowerCase().replace(/\s+/g, " ");
+  if (!same) throw new Error("Имя не совпадает с профилем.");
+  saveLocalProfile(profile);
+  return profile;
+}
+
+export async function getProfileHistory(profileCode) {
+  const code = String(profileCode || "").trim().toUpperCase();
+  if (!isProfileCode(code)) return [];
+  const sb = await initSupabase();
+  let rows = [];
+  if (sb) {
+    try {
+      const { data, error } = await sb.from("exam_results").select("*").eq("code", code).order("created_at", { ascending: false }).limit(100);
+      if (!error && Array.isArray(data)) rows = data;
+    } catch {}
+  }
+  if (!rows.length) rows = readLocal(KEYS.results, []).filter((r) => String(r.code || "").toUpperCase() === code);
+  return rows.map((doc) => ({
+    id: doc.id,
+    code: doc.code,
+    studentName: doc.student_name || doc.studentName,
+    className: doc.class_name || doc.className || "",
+    startedAt: doc.started_at || doc.startedAt,
+    finishedAt: doc.finished_at || doc.finishedAt || doc.created_at,
+    durationSeconds: Number(doc.duration_seconds ?? doc.durationSeconds) || 0,
+    score: Number(doc.score) || 0,
+    tabSwitches: Number(doc.tab_switches ?? doc.tabSwitches) || 0,
+    status: doc.status || "Завершён штатно",
+    eventCode: doc.event_code || doc.eventCode || "",
+    eventTitle: doc.event_title || doc.eventTitle || "",
+  })).sort((a,b)=>new Date(b.finishedAt)-new Date(a.finishedAt));
+}
+
+export async function createEvent({ title, owner }) {
+  const cleanTitle = String(title || "").trim();
+  if (!cleanTitle) throw new Error("Введите название события.");
+  const event = normalizeEvent({
+    code: makeEventId(),
+    title: cleanTitle,
+    owner: String(owner || "").trim(),
+    createdAt: new Date().toISOString(),
+    active: true,
+  });
+  const sb = await initSupabase();
+  if (sb) {
+    try { await sb.from("access_codes").upsert([eventToRow(event)], { onConflict: "code" }); } catch {}
+  }
+  const events = readLocal(KEYS.events, []).map(normalizeEvent);
+  events.unshift(event);
+  writeLocal(KEYS.events, events);
+  return event;
+}
+
+export async function setEventActive(code, active) {
+  const target = String(code || "").trim().toUpperCase();
+  const events = (await getEvents()).map((e) => e.code === target ? { ...e, active: Boolean(active) } : e);
+  writeLocal(KEYS.events, events);
+  const sb = await initSupabase();
+  const event = events.find((e) => e.code === target);
+  if (sb && event) {
+    try { await sb.from("access_codes").upsert([eventToRow(event)], { onConflict: "code" }); } catch {}
+  }
+  return event || null;
+}
+
+export function getLocalProfile() {
+  const raw = readLocal(KEYS.profile, null);
+  return raw ? normalizeProfile(raw) : null;
+}
+
+export function saveLocalProfile(profile) {
+  const p = normalizeProfile(profile);
+  writeLocal(KEYS.profile, p);
+  return p;
+}
+
+export function clearLocalProfile() {
+  localStorage.removeItem(KEYS.profile);
+}
+
+export async function upsertProfile(profile) {
+  const p = saveLocalProfile(profile);
+  const sb = await initSupabase();
+  if (sb) {
+    try { await sb.from("access_codes").upsert([profileToRow(p)], { onConflict: "code" }); } catch {}
+  }
+  return p;
+}
+
+export async function loginStudentProfile({ name, className }) {
+  const cleanName = String(name || "").trim();
+  const cleanClass = String(className || "").trim();
+  if (!cleanName) throw new Error("Введите имя для профиля.");
+  const current = getLocalProfile();
+  const profile = normalizeProfile({
+    ...(current || {}),
+    id: current?.id,
+    name: cleanName,
+    className: cleanClass,
+    lastLoginAt: new Date().toISOString(),
+    createdAt: current?.createdAt,
+  });
+  return await upsertProfile(profile);
+}
   const sb = await initSupabase();
   if (sb) {
     try {
@@ -659,11 +964,18 @@ export async function getResults() {
             parsedAnswers = [];
           }
 
+          const rawClass = String(doc.class_name || "");
+          const eventMatch = rawClass.match(/(?:^|\|\s*)event:([A-Z0-9-]+)/i);
+          const modeMatch = rawClass.match(/(?:^|\|\s*)mode:(exam|practice)/i);
+          const cleanClass = rawClass.replace(/\|\s*event:[A-Z0-9-]+/ig, "").replace(/\|\s*mode:(exam|practice)/ig, "").replace(/^\s*\|\s*|\s*\|\s*$/g, "").trim();
+
           return {
             id: doc.id,
             code: doc.code,
             studentName: doc.student_name,
-            className: doc.class_name || "",
+            className: cleanClass,
+            eventCode: eventMatch ? eventMatch[1].toUpperCase() : "",
+            mode: modeMatch ? modeMatch[1].toLowerCase() : "exam",
             startedAt: doc.started_at,
             finishedAt: doc.finished_at || doc.created_at,
             durationSeconds: Number(doc.duration_seconds) || 0,
@@ -678,7 +990,50 @@ export async function getResults() {
       console.warn("Не удалось загрузить результаты из Supabase, читаем локальные:", err);
     }
   }
-  return readLocal(KEYS.results, []);
+  const local = readLocal(KEYS.results, []);
+  if (local.length) return local;
+  return [];
+}
+
+export async function getResults(eventCode = "") {
+  const normalizedEvent = String(eventCode || "").trim().toUpperCase();
+  const mapDoc = (doc) => {
+    let parsedAnswers = [];
+    try { parsedAnswers = typeof doc.answers === "string" ? JSON.parse(doc.answers) : (doc.answers || []); } catch { parsedAnswers = []; }
+    return {
+      id: doc.id,
+      code: doc.code,
+      studentName: doc.student_name || doc.studentName,
+      className: doc.class_name || doc.className || "",
+      startedAt: doc.started_at || doc.startedAt,
+      finishedAt: doc.finished_at || doc.finishedAt || doc.created_at,
+      durationSeconds: Number(doc.duration_seconds ?? doc.durationSeconds) || 0,
+      score: Number(doc.score) || 0,
+      tabSwitches: Number(doc.tab_switches ?? doc.tabSwitches) || 0,
+      status: doc.status || "Завершён штатно",
+      answers: parsedAnswers,
+      eventCode: doc.event_code || doc.eventCode || "",
+      eventTitle: doc.event_title || doc.eventTitle || "",
+      profileCode: doc.profile_code || doc.profileCode || "",
+      mode: doc.mode || (doc.event_code || doc.eventCode ? "event" : "practice"),
+    };
+  };
+  const sb = await initSupabase();
+  let rows = [];
+  if (sb) {
+    try {
+      let q = sb.from("exam_results").select("*").order("created_at", { ascending: false }).limit(200);
+      if (normalizedEvent) q = q.eq("event_code", normalizedEvent);
+      const { data, error } = await q;
+      if (!error && Array.isArray(data)) rows = data;
+    } catch (err) {
+      console.warn("Не удалось загрузить результаты из Supabase, читаем локальные:", err);
+    }
+  }
+  if (!rows.length) rows = readLocal(KEYS.results, []);
+  let mapped = rows.map(mapDoc);
+  if (normalizedEvent) mapped = mapped.filter((r) => String(r.eventCode || "").toUpperCase() === normalizedEvent);
+  return mapped.sort((a,b)=>new Date(b.finishedAt)-new Date(a.finishedAt));
 }
 
 export async function clearLocalData() {

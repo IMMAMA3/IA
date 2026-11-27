@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
-  <script type="module" src="app.js?v=20261127b"></script>
+  <script type="module" src="app.js?v=20261127c"></script>
 </head>
 <body>
   <div class="glow-bg" aria-hidden="true">
@@ -104,13 +104,13 @@
           </div>
         </div>
 
-        <div class="login-panel">
+                <div class="login-panel">
           <div class="card login-card">
             <div class="card-header">
               <div class="card-header-text">
                 <span class="card-eyebrow">Вход для ученика</span>
-                <h2>Введите ID доступа</h2>
-                <p class="card-subtitle">Учитель уже привязал ваше имя к персональному коду. Введите его, чтобы открыть свой вариант.</p>
+                <h2>Тренировка или событие</h2>
+                <p class="card-subtitle">Создайте профиль для самостоятельной тренировки или введите ID события и 6-значный ID, выданный учителем.</p>
               </div>
               <div class="card-icon-badge" aria-hidden="true">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -120,30 +120,51 @@
               </div>
             </div>
 
+            <div class="mode-switch" id="login-mode-switch" role="tablist" aria-label="Режим входа">
+              <button type="button" class="mode-switch-btn active" data-mode="profile" role="tab">Профиль / тренировка</button>
+              <button type="button" class="mode-switch-btn" data-mode="event" role="tab">По ID события</button>
+            </div>
+
             <form id="login-form" class="login-form" novalidate>
-              <div class="form-group">
-                <label for="access-code">Разовый ID доступа</label>
-                <div class="input-with-icon">
-                  <span class="input-icon" aria-hidden="true">#</span>
-                  <input
-                    id="access-code"
-                    name="code"
-                    type="text"
-                    placeholder="OGE-7421"
-                    required
-                    maxlength="10"
-                    autocapitalize="characters"
-                    autocomplete="off"
-                    spellcheck="false"
-                    class="code-input"
-                  >
+              <div id="profile-fields">
+                <div class="form-group">
+                  <label for="profile-name">Имя и фамилия</label>
+                  <input id="profile-name" name="profileName" type="text" class="task-answer-input" style="max-width:100%" placeholder="Иванов Иван" autocomplete="name">
                 </div>
+                <label class="check-row"><input type="checkbox" id="profile-register"> <span>Создать новый профиль (получу 6-значный ID)</span></label>
+                <div class="form-group hidden" id="profile-class-wrap">
+                  <label for="profile-class">Класс (необязательно)</label>
+                  <input id="profile-class" name="profileClass" type="text" class="task-answer-input" style="max-width:100%" placeholder="9А">
+                </div>
+                <div class="form-group" id="profile-code-wrap">
+                  <label for="profile-code">ID профиля (6 цифр)</label>
+                  <div class="input-with-icon">
+                    <span class="input-icon" aria-hidden="true">#</span>
+                    <input id="profile-code" name="profileCode" type="text" inputmode="numeric" maxlength="6" placeholder="123456" autocomplete="off" class="code-input">
+                  </div>
+                </div>
+                <p id="profile-created-code" class="form-note hidden"></p>
+              </div>
+
+              <div id="event-fields" class="hidden">
+                <div class="form-group">
+                  <label for="event-code">ID события</label>
+                  <input id="event-code" name="eventCode" type="text" class="task-answer-input" style="max-width:100%;text-transform:uppercase" maxlength="10" placeholder="EVT-123456" autocomplete="off">
+                </div>
+                <div class="form-group">
+                  <label for="event-student-code">Ваш 6-значный ID</label>
+                  <div class="input-with-icon">
+                    <span class="input-icon" aria-hidden="true">#</span>
+                    <input id="event-student-code" name="eventStudentCode" type="text" inputmode="numeric" maxlength="6" placeholder="123456" autocomplete="off" class="code-input">
+                  </div>
+                </div>
+                <p class="form-note">В событии действует таймер, сохранение и защита от переключения вкладок.</p>
               </div>
 
               <p id="login-error" class="form-error" aria-live="polite"></p>
 
               <button class="button button-primary button-wide" type="submit" id="submit-login">
-                <span>Войти в тестирование</span>
+                <span>Начать</span>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <line x1="5" y1="12" x2="19" y2="12"></line>
                   <polyline points="12 5 19 12 12 19"></polyline>
@@ -151,14 +172,13 @@
               </button>
             </form>
 
-            <div class="login-tip" role="note">
-              <span class="tip-icon" aria-hidden="true">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-              </span>
-              <span>При обновлении страницы таймер и ответы сохраняются. Во время теста не покидайте вкладку.</span>
+            <div class="profile-history-block">
+              <div class="panel-head compact"><h3 class="panel-title">История профиля</h3></div>
+              <div id="profile-history" class="profile-history"></div>
             </div>
           </div>
         </div>
+
       </section>
 
       <section id="exam-view" class="exam-view hidden" aria-live="polite"></section>
