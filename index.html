@@ -9,8 +9,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
-  <script type="module" src="app.js?v=20261127c"></script>
+  <link rel="stylesheet" href="style.css?v=20261127d">
+  <script type="module" src="app.js?v=20261127d"></script>
 </head>
 <body>
   <div class="glow-bg" aria-hidden="true">
@@ -110,7 +110,7 @@
               <div class="card-header-text">
                 <span class="card-eyebrow">Вход для ученика</span>
                 <h2>Тренировка или событие</h2>
-                <p class="card-subtitle">Создайте профиль для самостоятельной тренировки или введите ID события и 6-значный ID, выданный учителем.</p>
+                <p class="card-subtitle">Войдите по профилю, выданному учителем, для тренировки или введите ID события и 6-значный ID участника.</p>
               </div>
               <div class="card-icon-badge" aria-hidden="true">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -131,11 +131,6 @@
                   <label for="profile-name">Имя и фамилия</label>
                   <input id="profile-name" name="profileName" type="text" class="task-answer-input" style="max-width:100%" placeholder="Иванов Иван" autocomplete="name">
                 </div>
-                <label class="check-row"><input type="checkbox" id="profile-register"> <span>Создать новый профиль (получу 6-значный ID)</span></label>
-                <div class="form-group hidden" id="profile-class-wrap">
-                  <label for="profile-class">Класс (необязательно)</label>
-                  <input id="profile-class" name="profileClass" type="text" class="task-answer-input" style="max-width:100%" placeholder="9А">
-                </div>
                 <div class="form-group" id="profile-code-wrap">
                   <label for="profile-code">ID профиля (6 цифр)</label>
                   <div class="input-with-icon">
@@ -143,6 +138,7 @@
                     <input id="profile-code" name="profileCode" type="text" inputmode="numeric" maxlength="6" placeholder="123456" autocomplete="off" class="code-input">
                   </div>
                 </div>
+                <p class="form-note">Профиль для тренировки выдаёт администратор или учитель.</p>
                 <p id="profile-created-code" class="form-note hidden"></p>
               </div>
 
@@ -198,3 +194,4 @@
   </div>
 </body>
 </html>
+

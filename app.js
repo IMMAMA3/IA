@@ -19,13 +19,12 @@ import {
   getTeachers,
   createTeacher,
   deleteTeacher,
-  getLocalProfile,
-  registerProfile,
+  getLocalProfile,`r`n  registerProfile,
   loginProfile,
   getProfileHistory,
   getEvents,
   createEvent,
-} from "./storage.js?v=20261127c";
+} from "./storage.js?v=20261127d";
 
 const $ = (selector) => document.querySelector(selector);
 const views = ["login-view", "exam-view", "result-view", "teacher-view"];
@@ -39,7 +38,6 @@ let inputSaveTimer = null;
 let staffActor = getStaffSession();
 let studentProfile = getLocalProfile();
 let loginMode = "profile"; // profile | event
-let selectedEventFilter = "";
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -66,7 +64,7 @@ function clearModal() {
   $("#modal-root").innerHTML = "";
 }
 
-// ---------------- ТЕМА ОФОРМЛЕНИЯ (DARK / LIGHT) ----------------
+// ---------------- РўР•РњРђ РћР¤РћР РњР›Р•РќРРЇ (DARK / LIGHT) ----------------
 
 function applyTheme(theme) {
   document.documentElement.setAttribute("data-theme", theme);
@@ -88,7 +86,7 @@ function initTheme() {
   }
 }
 
-// ---------------- ИНИЦИАЛИЗАЦИЯ ----------------
+// ---------------- РРќРР¦РРђР›РР—РђР¦РРЇ ----------------
 
 async function initialize() {
   initTheme();
@@ -120,7 +118,7 @@ async function initialize() {
       session = saved;
       currentIndex = Math.max(0, Math.min(saved.lastIndex || 0, saved.questions.length - 1));
       if (Date.now() - saved.startedAt >= 30 * 60 * 1000) {
-        await finishExam("Время истекло");
+        await finishExam("Р’СЂРµРјСЏ РёСЃС‚РµРєР»Рѕ");
         return;
       }
       activateExam();
@@ -131,7 +129,7 @@ async function initialize() {
 }
 
 
-// ---------------- ВХОД УЧЕНИКА (ТОЛЬКО ID) ----------------
+// ---------------- Р’РҐРћР” РЈР§Р•РќРРљРђ (РўРћР›Р¬РљРћ ID) ----------------
 
 function setLoginMode(mode) {
   loginMode = mode === "event" ? "event" : "profile";
@@ -143,38 +141,32 @@ function setLoginMode(mode) {
 
 function bindLoginModeSwitch() {
   $$("#login-mode-switch [data-mode]").forEach((btn) => btn.addEventListener("click", () => setLoginMode(btn.dataset.mode)));
-  $("#profile-register")?.addEventListener("change", (e) => {
-    const reg = e.target.checked;
-    $("#profile-code-wrap")?.classList.toggle("hidden", reg);
-    $("#profile-class-wrap")?.classList.toggle("hidden", !reg);
-    $("#profile-created-code")?.classList.add("hidden");
-  });
 }
 
 async function renderProfileHistory() {
   const box = $("#profile-history");
   if (!box) return;
   if (!studentProfile?.code) {
-    box.innerHTML = `<div class="empty-note">Создайте профиль или войдите, чтобы видеть историю.</div>`;
+    box.innerHTML = `<div class="empty-note">РЎРѕР·РґР°Р№С‚Рµ РїСЂРѕС„РёР»СЊ РёР»Рё РІРѕР№РґРёС‚Рµ, С‡С‚РѕР±С‹ РІРёРґРµС‚СЊ РёСЃС‚РѕСЂРёСЋ.</div>`;
     return;
   }
-  box.innerHTML = `<div class="empty-note">Загружаем историю…</div>`;
+  box.innerHTML = `<div class="empty-note">Р—Р°РіСЂСѓР¶Р°РµРј РёСЃС‚РѕСЂРёСЋвЂ¦</div>`;
   try {
     const history = await getProfileHistory(studentProfile.code);
     if (!history.length) {
-      box.innerHTML = `<div class="empty-note">Пока нет завершённых попыток.</div>`;
+      box.innerHTML = `<div class="empty-note">РџРѕРєР° РЅРµС‚ Р·Р°РІРµСЂС€С‘РЅРЅС‹С… РїРѕРїС‹С‚РѕРє.</div>`;
       return;
     }
     box.innerHTML = history.slice(0, 8).map((r) => `
       <div class="history-row">
         <div>
-          <b>${r.score}/8</b> <span class="muted">· ${escapeHtml(new Date(r.finishedAt).toLocaleString("ru-RU"))}</span>
-          <div class="muted small">${r.eventCode ? `Событие: ${escapeHtml(r.eventTitle || r.eventCode)}` : "Тренировка"}</div>
+          <b>${r.score}/8</b> <span class="muted">В· ${escapeHtml(new Date(r.finishedAt).toLocaleString("ru-RU"))}</span>
+          <div class="muted small">${r.eventCode ? `РЎРѕР±С‹С‚РёРµ: ${escapeHtml(r.eventTitle || r.eventCode)}` : "РўСЂРµРЅРёСЂРѕРІРєР°"}</div>
         </div>
-        <span class="status-badge ${String(r.status).includes("Принуд") ? "forced" : "completed"}">${escapeHtml(r.status)}</span>
+        <span class="status-badge ${String(r.status).includes("РџСЂРёРЅСѓРґ") ? "forced" : "completed"}">${escapeHtml(r.status)}</span>
       </div>`).join("");
   } catch {
-    box.innerHTML = `<div class="empty-note">Не удалось загрузить историю.</div>`;
+    box.innerHTML = `<div class="empty-note">РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РёСЃС‚РѕСЂРёСЋ.</div>`;
   }
 }
 
@@ -195,25 +187,14 @@ $("#login-form").addEventListener("submit", async (event) => {
     if (loginMode === "event") {
       eventCode = String(form.get("eventCode") || "").trim().toUpperCase();
       code = String(form.get("eventStudentCode") || "").trim().toUpperCase();
-      if (!/^EVT-\d{6}$/.test(eventCode)) throw new Error("Введите корректный ID события (EVT-123456).");
-      if (!/^\d{6}$/.test(code)) throw new Error("Введите 6-значный ID ученика.");
+      if (!/^EVT-\d{6}$/.test(eventCode)) throw new Error("Р’РІРµРґРёС‚Рµ РєРѕСЂСЂРµРєС‚РЅС‹Р№ ID СЃРѕР±С‹С‚РёСЏ (EVT-123456).");
+      if (!/^\d{6}$/.test(code)) throw new Error("Р’РІРµРґРёС‚Рµ 6-Р·РЅР°С‡РЅС‹Р№ ID СѓС‡РµРЅРёРєР°.");
     } else {
       const name = String(form.get("profileName") || "").trim();
       code = String(form.get("profileCode") || "").trim().toUpperCase();
-      const isRegister = $("#profile-register")?.checked;
-      if (isRegister) {
-        const className = String(form.get("profileClass") || "").trim();
-        profile = await registerProfile({ name, className });
-        code = profile.code;
-        studentProfile = profile;
-        $("#profile-code").value = profile.code;
-        const codeBox = $("#profile-created-code");
-        if (codeBox) { codeBox.textContent = `Ваш ID профиля: ${profile.code}. Сохраните его для входа.`; codeBox.classList.remove("hidden"); }
-      } else {
-        if (!/^\d{6}$/.test(code)) throw new Error("Введите 6-значный ID профиля.");
-        profile = await loginProfile({ code, name });
-        studentProfile = profile;
-      }
+      if (!/^\d{6}$/.test(code)) throw new Error("Р’РІРµРґРёС‚Рµ 6-Р·РЅР°С‡РЅС‹Р№ ID РїСЂРѕС„РёР»СЏ.");
+      profile = await loginProfile({ code, name });
+      studentProfile = profile;
       renderProfileHistory();
     }
 
@@ -222,14 +203,14 @@ $("#login-form").addEventListener("submit", async (event) => {
     currentIndex = 0;
     activateExam();
   } catch (error) {
-    errorEl.textContent = error.message || "Не удалось войти.";
+    errorEl.textContent = error.message || "РќРµ СѓРґР°Р»РѕСЃСЊ РІРѕР№С‚Рё.";
   } finally {
     submitBtn.disabled = false;
     submitBtn.style.opacity = "1";
   }
 });
 
-// ---------------- ЭКРАН ЭКЗАМЕНА ----------------
+// ---------------- Р­РљР РђРќ Р­РљР—РђРњР•РќРђ ----------------
 
 function activateExam() {
   examFinished = false;
@@ -259,22 +240,22 @@ function renderExam() {
   const nav = session.questions
     .map(
       (item, index) =>
-        `<button class="nav-task ${index === currentIndex ? "current" : ""} ${String(session.answers[item.number] ?? "").trim() ? "answered" : ""}" data-index="${index}" aria-label="Задание ${item.number}">${item.number}</button>`
+        `<button class="nav-task ${index === currentIndex ? "current" : ""} ${String(session.answers[item.number] ?? "").trim() ? "answered" : ""}" data-index="${index}" aria-label="Р—Р°РґР°РЅРёРµ ${item.number}">${item.number}</button>`
     )
     .join("");
 
   const inputType = question.answerType === "number" ? "number" : "text";
   const modeLabel = session.mode === "event"
-    ? `Событие: ${escapeHtml(session.eventTitle || session.eventCode || "")}`
-    : "Тренировка";
+    ? `РЎРѕР±С‹С‚РёРµ: ${escapeHtml(session.eventTitle || session.eventCode || "")}`
+    : "РўСЂРµРЅРёСЂРѕРІРєР°";
 
   root.innerHTML = `
     <div class="exam-topbar">
       <div class="student-meta">
-        <div class="student-avatar" aria-hidden="true">${escapeHtml((session.studentName || "У")[0])}</div>
+        <div class="student-avatar" aria-hidden="true">${escapeHtml((session.studentName || "РЈ")[0])}</div>
         <div class="student-meta-text">
-          <b>${escapeHtml(session.studentName || "Ученик")}${session.className ? ` <span style="color:var(--text-muted);font-weight:600">(${escapeHtml(session.className)})</span>` : ""}</b>
-          <span>${modeLabel} · ID: ${escapeHtml(session.code)}</span>
+          <b>${escapeHtml(session.studentName || "РЈС‡РµРЅРёРє")}${session.className ? ` <span style="color:var(--text-muted);font-weight:600">(${escapeHtml(session.className)})</span>` : ""}</b>
+          <span>${modeLabel} В· ID: ${escapeHtml(session.code)}</span>
         </div>
       </div>
       <div id="timer" class="timer-box" aria-live="polite">
@@ -284,26 +265,26 @@ function renderExam() {
     </div>
 
     <div class="exam-layout">
-      <aside class="card task-nav" aria-label="Навигация по заданиям">
-        <p class="nav-header">Навигация по тесту</p>
+      <aside class="card task-nav" aria-label="РќР°РІРёРіР°С†РёСЏ РїРѕ Р·Р°РґР°РЅРёСЏРј">
+        <p class="nav-header">РќР°РІРёРіР°С†РёСЏ РїРѕ С‚РµСЃС‚Сѓ</p>
         <div class="nav-grid">${nav}</div>
-        <div class="nav-legend" aria-label="Обозначения">
-          <div class="legend-item"><span class="legend-color legend-color-current" aria-hidden="true"></span><span>Текущий вопрос</span></div>
-          <div class="legend-item"><span class="legend-color legend-color-answered" aria-hidden="true"></span><span>Ответ сохранён</span></div>
-          <div class="legend-item"><span class="legend-color legend-color-empty" aria-hidden="true"></span><span>Не отвечено</span></div>
+        <div class="nav-legend" aria-label="РћР±РѕР·РЅР°С‡РµРЅРёСЏ">
+          <div class="legend-item"><span class="legend-color legend-color-current" aria-hidden="true"></span><span>РўРµРєСѓС‰РёР№ РІРѕРїСЂРѕСЃ</span></div>
+          <div class="legend-item"><span class="legend-color legend-color-answered" aria-hidden="true"></span><span>РћС‚РІРµС‚ СЃРѕС…СЂР°РЅС‘РЅ</span></div>
+          <div class="legend-item"><span class="legend-color legend-color-empty" aria-hidden="true"></span><span>РќРµ РѕС‚РІРµС‡РµРЅРѕ</span></div>
         </div>
       </aside>
 
       <article class="card task-content-card">
         <div class="task-eyebrow">
-          <span class="task-pill">Задание ${question.number}</span>
-          <span class="task-points">1 первичный балл</span>
+          <span class="task-pill">Р—Р°РґР°РЅРёРµ ${question.number}</span>
+          <span class="task-points">1 РїРµСЂРІРёС‡РЅС‹Р№ Р±Р°Р»Р»</span>
         </div>
         <h2 class="task-title">${escapeHtml(question.title)}</h2>
         <div class="task-prompt">${question.prompt}</div>
 
         <div class="task-answer-box">
-          <label for="answer-input">Ответ на задание</label>
+          <label for="answer-input">РћС‚РІРµС‚ РЅР° Р·Р°РґР°РЅРёРµ</label>
           <input
             id="answer-input"
             class="task-answer-input"
@@ -312,18 +293,18 @@ function renderExam() {
             autocomplete="off"
             spellcheck="false"
             value="${escapeHtml(session.answers[question.number] ?? "")}"
-            placeholder="Введите ответ"
-            aria-label="Ответ на задание ${question.number}"
+            placeholder="Р’РІРµРґРёС‚Рµ РѕС‚РІРµС‚"
+            aria-label="РћС‚РІРµС‚ РЅР° Р·Р°РґР°РЅРёРµ ${question.number}"
           >
         </div>
 
         <div class="task-nav-buttons">
           <button class="button button-ghost" type="button" id="prev-task" ${currentIndex === 0 ? "disabled" : ""}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-            <span>Предыдущее</span>
+            <span>РџСЂРµРґС‹РґСѓС‰РµРµ</span>
           </button>
           <button class="button button-primary" type="button" id="next-task">
-            <span>${currentIndex === session.questions.length - 1 ? "К проверке" : "Следующее"}</span>
+            <span>${currentIndex === session.questions.length - 1 ? "Рљ РїСЂРѕРІРµСЂРєРµ" : "РЎР»РµРґСѓСЋС‰РµРµ"}</span>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
           </button>
         </div>
@@ -332,13 +313,13 @@ function renderExam() {
 
     <div class="exam-footer-bar">
       <div class="progress-info">
-        <span class="progress-meta">Прогресс: <b>${answeredCount} из ${session.questions.length}</b></span>
+        <span class="progress-meta">РџСЂРѕРіСЂРµСЃСЃ: <b>${answeredCount} РёР· ${session.questions.length}</b></span>
         <div class="progress-bar-wrap" aria-hidden="true">
           <div class="progress-bar-fill" style="width: ${progressPct}%"></div>
         </div>
       </div>
       <button class="button button-danger" type="button" id="finish-exam">
-        <span>Завершить и отправить</span>
+        <span>Р—Р°РІРµСЂС€РёС‚СЊ Рё РѕС‚РїСЂР°РІРёС‚СЊ</span>
       </button>
     </div>
   `;
@@ -368,7 +349,7 @@ function renderExam() {
       }
       const progressSpan = $(".progress-info .progress-meta b") || $(".progress-info span b");
       if (progressSpan) {
-        progressSpan.textContent = `${newAnsweredCount} из ${session.questions.length}`;
+        progressSpan.textContent = `${newAnsweredCount} РёР· ${session.questions.length}`;
       }
 
       root.querySelectorAll(".nav-task").forEach((btn, index) => {
@@ -415,7 +396,7 @@ function updateTimer() {
     else timer.textContent = formatted;
     timer.classList.toggle("urgent", remaining <= 5 * 60 * 1000);
   }
-  if (remaining <= 0) finishExam("Время истекло");
+  if (remaining <= 0) finishExam("Р’СЂРµРјСЏ РёСЃС‚РµРєР»Рѕ");
 }
 
 function confirmFinish() {
@@ -425,21 +406,21 @@ function confirmFinish() {
   const unanswered = session.questions.length - answeredCount;
 
   modal(`
-    <h2>Завершить тестирование?</h2>
-    <p>${unanswered > 0 ? `Вы не ответили на <b>${unanswered}</b> из 8 заданий.` : "Все 8 заданий заполнены."} После отправки изменить ответы будет невозможно.</p>
+    <h2>Р—Р°РІРµСЂС€РёС‚СЊ С‚РµСЃС‚РёСЂРѕРІР°РЅРёРµ?</h2>
+    <p>${unanswered > 0 ? `Р’С‹ РЅРµ РѕС‚РІРµС‚РёР»Рё РЅР° <b>${unanswered}</b> РёР· 8 Р·Р°РґР°РЅРёР№.` : "Р’СЃРµ 8 Р·Р°РґР°РЅРёР№ Р·Р°РїРѕР»РЅРµРЅС‹."} РџРѕСЃР»Рµ РѕС‚РїСЂР°РІРєРё РёР·РјРµРЅРёС‚СЊ РѕС‚РІРµС‚С‹ Р±СѓРґРµС‚ РЅРµРІРѕР·РјРѕР¶РЅРѕ.</p>
     <div class="modal-actions">
-      <button class="button button-ghost" type="button" id="cancel-modal">Вернуться</button>
-      <button class="button button-primary" type="button" id="confirm-finish">Отправить работу</button>
+      <button class="button button-ghost" type="button" id="cancel-modal">Р’РµСЂРЅСѓС‚СЊСЃСЏ</button>
+      <button class="button button-primary" type="button" id="confirm-finish">РћС‚РїСЂР°РІРёС‚СЊ СЂР°Р±РѕС‚Сѓ</button>
     </div>
   `);
   $("#cancel-modal").addEventListener("click", clearModal);
   $("#confirm-finish").addEventListener("click", () => {
     clearModal();
-    finishExam("Завершён штатно");
+    finishExam("Р—Р°РІРµСЂС€С‘РЅ С€С‚Р°С‚РЅРѕ");
   });
 }
 
-// ---------------- ЗАВЕРШЕНИЕ ЭКЗАМЕНА ----------------
+// ---------------- Р—РђР’Р•Р РЁР•РќРР• Р­РљР—РђРњР•РќРђ ----------------
 
 async function finishExam(status) {
   if (!session || examFinished) return;
@@ -461,7 +442,7 @@ async function finishExam(status) {
   const result = {
     id: session.id,
     code: session.code,
-    studentName: session.studentName || "Ученик",
+    studentName: session.studentName || "РЈС‡РµРЅРёРє",
     className: session.className || "",
     profileCode: session.profileCode || "",
     eventCode: session.eventCode || "",
@@ -489,16 +470,16 @@ async function finishExam(status) {
 
 function formatDuration(seconds) {
   const minutes = Math.floor(seconds / 60);
-  return `${minutes} мин ${String(seconds % 60).padStart(2, "0")} сек`;
+  return `${minutes} РјРёРЅ ${String(seconds % 60).padStart(2, "0")} СЃРµРє`;
 }
 
 function showResult(result) {
   showView("result-view");
   const grade =
-    result.score >= 7 ? "Отлично (оценка 5)" :
-    result.score >= 5 ? "Хорошо (оценка 4)" :
-    result.score >= 3 ? "Удовлетворительно (оценка 3)" :
-    "Требуется повторение (оценка 2)";
+    result.score >= 7 ? "РћС‚Р»РёС‡РЅРѕ (РѕС†РµРЅРєР° 5)" :
+    result.score >= 5 ? "РҐРѕСЂРѕС€Рѕ (РѕС†РµРЅРєР° 4)" :
+    result.score >= 3 ? "РЈРґРѕРІР»РµС‚РІРѕСЂРёС‚РµР»СЊРЅРѕ (РѕС†РµРЅРєР° 3)" :
+    "РўСЂРµР±СѓРµС‚СЃСЏ РїРѕРІС‚РѕСЂРµРЅРёРµ (РѕС†РµРЅРєР° 2)";
   const gradeTone = result.score >= 5 ? "success" : result.score >= 3 ? "warn" : "danger";
 
   $("#result-view").innerHTML = `
@@ -509,8 +490,8 @@ function showResult(result) {
             ? '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>'
             : '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>'}
         </div>
-        <p class="card-eyebrow">${result.mode === "practice" ? "Результат тренировки" : "Результат тестирования"}</p>
-        <h2>${result.mode === "practice" ? "Тренировка завершена" : "Работа завершена"}</h2>
+        <p class="card-eyebrow">${result.mode === "practice" ? "Р РµР·СѓР»СЊС‚Р°С‚ С‚СЂРµРЅРёСЂРѕРІРєРё" : "Р РµР·СѓР»СЊС‚Р°С‚ С‚РµСЃС‚РёСЂРѕРІР°РЅРёСЏ"}</p>
+        <h2>${result.mode === "practice" ? "РўСЂРµРЅРёСЂРѕРІРєР° Р·Р°РІРµСЂС€РµРЅР°" : "Р Р°Р±РѕС‚Р° Р·Р°РІРµСЂС€РµРЅР°"}</h2>
       </div>
 
       <div class="result-score-banner">
@@ -520,30 +501,30 @@ function showResult(result) {
 
       <div class="result-details-grid">
         <div class="result-detail-box">
-          <span>Ученик</span>
+          <span>РЈС‡РµРЅРёРє</span>
           <b>${escapeHtml(result.studentName)}</b>
         </div>
         <div class="result-detail-box">
-          <span>Время работы</span>
+          <span>Р’СЂРµРјСЏ СЂР°Р±РѕС‚С‹</span>
           <b>${formatDuration(result.durationSeconds)}</b>
         </div>
         <div class="result-detail-box">
-          <span>${result.mode === "practice" ? "Режим" : "ID / событие"}</span>
-          <b>${escapeHtml(result.mode === "practice" ? "Тренировка" : `${result.code}${result.eventCode ? ` · ${result.eventCode}` : ""}`)}</b>
+          <span>${result.mode === "practice" ? "Р РµР¶РёРј" : "ID / СЃРѕР±С‹С‚РёРµ"}</span>
+          <b>${escapeHtml(result.mode === "practice" ? "РўСЂРµРЅРёСЂРѕРІРєР°" : `${result.code}${result.eventCode ? ` В· ${result.eventCode}` : ""}`)}</b>
         </div>
       </div>
 
-      <h3 class="section-title">Разбор заданий</h3>
+      <h3 class="section-title">Р Р°Р·Р±РѕСЂ Р·Р°РґР°РЅРёР№</h3>
       <div class="review-list">
         ${result.answers
       .map(
         (item) => `
           <div class="review-row ${item.correct ? "correct" : "wrong"}">
-            <span class="review-row-main"><span class="review-num">Задание ${item.number}</span><b>${escapeHtml(item.title)}</b></span>
+            <span class="review-row-main"><span class="review-num">Р—Р°РґР°РЅРёРµ ${item.number}</span><b>${escapeHtml(item.title)}</b></span>
             <span class="review-status-tag">
               ${item.correct
-                ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>Верно</span>'
-                : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg><span>Ошибка</span>'}
+                ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>Р’РµСЂРЅРѕ</span>'
+                : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg><span>РћС€РёР±РєР°</span>'}
             </span>
           </div>`
       )
@@ -553,7 +534,7 @@ function showResult(result) {
       <div class="result-actions">
         <button class="button button-ghost" type="button" id="to-login-btn">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h18"/><path d="M9 6 3 12l6 6"/></svg>
-          <span>Вернуться на главную</span>
+          <span>Р’РµСЂРЅСѓС‚СЊСЃСЏ РЅР° РіР»Р°РІРЅСѓСЋ</span>
         </button>
       </div>
     </div>
@@ -564,11 +545,11 @@ function showResult(result) {
   });
 }
 
-// ---------------- АНТИЧИТ (УХОД С ВКЛАДКИ) ----------------
+// ---------------- РђРќРўРР§РРў (РЈРҐРћР” РЎ Р’РљР›РђР”РљР) ----------------
 
 function registerDeparture() {
   if (!session || examFinished || awayActive) return;
-  if (session.mode !== "event") return; // античит только для событий
+  if (session.mode !== "event") return; // Р°РЅС‚РёС‡РёС‚ С‚РѕР»СЊРєРѕ РґР»СЏ СЃРѕР±С‹С‚РёР№
   awayActive = true;
   handleDeparture();
 }
@@ -579,19 +560,19 @@ async function handleDeparture() {
   session.tabSwitches = count;
 
   if (count >= 3) {
-    await finishExam("Принудительно (уход со вкладки)");
+    await finishExam("РџСЂРёРЅСѓРґРёС‚РµР»СЊРЅРѕ (СѓС…РѕРґ СЃРѕ РІРєР»Р°РґРєРё)");
     modal(`
       <div class="modal-header">
         <div class="modal-icon modal-icon-danger" aria-hidden="true">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
         </div>
         <div>
-          <h2>Тестирование остановлено</h2>
-          <p>Зафиксирован 3-й уход с вкладки. Работа автоматически завершена и передана учителю со статусом нарушения.</p>
+          <h2>РўРµСЃС‚РёСЂРѕРІР°РЅРёРµ РѕСЃС‚Р°РЅРѕРІР»РµРЅРѕ</h2>
+          <p>Р—Р°С„РёРєСЃРёСЂРѕРІР°РЅ 3-Р№ СѓС…РѕРґ СЃ РІРєР»Р°РґРєРё. Р Р°Р±РѕС‚Р° Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё Р·Р°РІРµСЂС€РµРЅР° Рё РїРµСЂРµРґР°РЅР° СѓС‡РёС‚РµР»СЋ СЃРѕ СЃС‚Р°С‚СѓСЃРѕРј РЅР°СЂСѓС€РµРЅРёСЏ.</p>
         </div>
       </div>
       <div class="modal-actions">
-        <button class="button button-primary" type="button" id="close-forced">Понятно</button>
+        <button class="button button-primary" type="button" id="close-forced">РџРѕРЅСЏС‚РЅРѕ</button>
       </div>
     `);
     $("#close-forced").addEventListener("click", clearModal);
@@ -604,10 +585,10 @@ async function handleDeparture() {
         <div class="warning-icon" aria-hidden="true">
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         </div>
-        <p class="warning-eyebrow">Нарушение ${count} из 3</p>
-        <h2 id="warning-title">Не покидайте страницу экзамена</h2>
-        <p>Зафиксировано переключение окна. При 3-м нарушении тест завершится автоматически без возможности продолжения.</p>
-        <button class="button button-primary" type="button" id="return-exam">Вернуться к выполнению</button>
+        <p class="warning-eyebrow">РќР°СЂСѓС€РµРЅРёРµ ${count} РёР· 3</p>
+        <h2 id="warning-title">РќРµ РїРѕРєРёРґР°Р№С‚Рµ СЃС‚СЂР°РЅРёС†Сѓ СЌРєР·Р°РјРµРЅР°</h2>
+        <p>Р—Р°С„РёРєСЃРёСЂРѕРІР°РЅРѕ РїРµСЂРµРєР»СЋС‡РµРЅРёРµ РѕРєРЅР°. РџСЂРё 3-Рј РЅР°СЂСѓС€РµРЅРёРё С‚РµСЃС‚ Р·Р°РІРµСЂС€РёС‚СЃСЏ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё Р±РµР· РІРѕР·РјРѕР¶РЅРѕСЃС‚Рё РїСЂРѕРґРѕР»Р¶РµРЅРёСЏ.</p>
+        <button class="button button-primary" type="button" id="return-exam">Р’РµСЂРЅСѓС‚СЊСЃСЏ Рє РІС‹РїРѕР»РЅРµРЅРёСЋ</button>
       </div>
     </div>
   `;
@@ -632,7 +613,7 @@ window.addEventListener("focus", () => {
   awayActive = false;
 });
 
-// ---------------- ПАНЕЛЬ УЧИТЕЛЯ (ДАШБОРД + СТАТИСТИКА) ----------------
+// ---------------- РџРђРќР•Р›Р¬ РЈР§РРўР•Р›РЇ (Р”РђРЁР‘РћР Р” + РЎРўРђРўРРЎРўРРљРђ) ----------------
 
 $("#teacher-open").addEventListener("click", async () => {
   if (session && !examFinished) return;
@@ -647,22 +628,22 @@ $("#teacher-open").addEventListener("click", async () => {
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       </div>
       <div>
-        <h2>Вход в панель</h2>
-        <p>Администратор входит по паролю. Учитель — по логину и паролю.</p>
+        <h2>Р’С…РѕРґ РІ РїР°РЅРµР»СЊ</h2>
+        <p>РђРґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ РІС…РѕРґРёС‚ РїРѕ РїР°СЂРѕР»СЋ. РЈС‡РёС‚РµР»СЊ вЂ” РїРѕ Р»РѕРіРёРЅСѓ Рё РїР°СЂРѕР»СЋ.</p>
       </div>
     </div>
     <div class="form-group">
-      <label for="staff-login">Логин учителя (для админа оставьте пустым)</label>
+      <label for="staff-login">Р›РѕРіРёРЅ СѓС‡РёС‚РµР»СЏ (РґР»СЏ Р°РґРјРёРЅР° РѕСЃС‚Р°РІСЊС‚Рµ РїСѓСЃС‚С‹Рј)</label>
       <input id="staff-login" type="text" class="task-answer-input" style="max-width:100%" autocomplete="username" placeholder="teacher1">
     </div>
     <div class="form-group">
-      <label for="staff-password">Пароль</label>
-      <input id="staff-password" type="password" class="task-answer-input" style="max-width:100%" autocomplete="current-password" placeholder="Введите пароль">
+      <label for="staff-password">РџР°СЂРѕР»СЊ</label>
+      <input id="staff-password" type="password" class="task-answer-input" style="max-width:100%" autocomplete="current-password" placeholder="Р’РІРµРґРёС‚Рµ РїР°СЂРѕР»СЊ">
     </div>
     <p id="teacher-login-error" class="form-error" aria-live="polite"></p>
     <div class="modal-actions">
-      <button class="button button-ghost" type="button" id="teacher-cancel">Отмена</button>
-      <button class="button button-primary" type="button" id="teacher-login">Войти</button>
+      <button class="button button-ghost" type="button" id="teacher-cancel">РћС‚РјРµРЅР°</button>
+      <button class="button button-primary" type="button" id="teacher-login">Р’РѕР№С‚Рё</button>
     </div>
   `);
 
@@ -675,7 +656,7 @@ $("#teacher-open").addEventListener("click", async () => {
       clearModal();
       await renderTeacher();
     } catch (err) {
-      $("#teacher-login-error").textContent = err.message || "Ошибка входа.";
+      $("#teacher-login-error").textContent = err.message || "РћС€РёР±РєР° РІС…РѕРґР°.";
     }
   };
   $("#teacher-login").addEventListener("click", submit);
@@ -700,10 +681,10 @@ async function renderTeacher() {
   ]);
   const activeCodes = allCodes.filter((c) => !c.used);
   const selectedEvent = events.find((e) => e.code === selectedEventCode) || null;
-  const filteredResults = selectedEventFilter ? results.filter((r) => r.eventCode === selectedEventFilter) : results;
+  const filteredResults = results;
   const sortedResults = [...filteredResults].sort((a, b) => new Date(b.finishedAt) - new Date(a.finishedAt));
 
-  // Аналитические агрегаты
+  // РђРЅР°Р»РёС‚РёС‡РµСЃРєРёРµ Р°РіСЂРµРіР°С‚С‹
   const totalCompleted = sortedResults.length;
   const avgScore = totalCompleted
     ? (sortedResults.reduce((acc, r) => acc + (Number(r.score) || 0), 0) / totalCompleted).toFixed(1)
@@ -711,7 +692,7 @@ async function renderTeacher() {
   const maxScore = totalCompleted ? Math.max(...sortedResults.map((r) => r.score || 0)) : 0;
   const totalTabSwitches = sortedResults.reduce((acc, r) => acc + (r.tabSwitches || 0), 0);
 
-  // Статистика успешности по каждому заданию (1, 2, 3, 4, 6, 7, 8, 10)
+  // РЎС‚Р°С‚РёСЃС‚РёРєР° СѓСЃРїРµС€РЅРѕСЃС‚Рё РїРѕ РєР°Р¶РґРѕРјСѓ Р·Р°РґР°РЅРёСЋ (1, 2, 3, 4, 6, 7, 8, 10)
   const taskNumbers = [1, 2, 3, 4, 6, 7, 8, 10];
   const taskStats = taskNumbers.map((num) => {
     if (!totalCompleted) return { num, correctPct: 0, count: 0 };
@@ -731,83 +712,57 @@ async function renderTeacher() {
     <div class="teacher-wrap">
       <div class="teacher-header-bar">
         <div class="teacher-header-text">
-          <p class="card-eyebrow">${staffActor.role === "admin" ? "Администратор" : "Учитель"}</p>
-          <h1>${staffActor.role === "admin" ? "Панель администратора" : "Панель учителя"}</h1>
-          <p class="panel-subtitle">${escapeHtml(staffActor.name)} · управление доступом, аналитика и результаты ОГЭ.</p>
+          <p class="card-eyebrow">${staffActor.role === "admin" ? "РђРґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ" : "РЈС‡РёС‚РµР»СЊ"}</p>
+          <h1>${staffActor.role === "admin" ? "РџР°РЅРµР»СЊ Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂР°" : "РџР°РЅРµР»СЊ СѓС‡РёС‚РµР»СЏ"}</h1>
+          <p class="panel-subtitle">${escapeHtml(staffActor.name)} В· СѓРїСЂР°РІР»РµРЅРёРµ РґРѕСЃС‚СѓРїРѕРј, Р°РЅР°Р»РёС‚РёРєР° Рё СЂРµР·СѓР»СЊС‚Р°С‚С‹ РћР“Р­.</p>
         </div>
         <div class="teacher-header-actions">
-          <button class="button button-ghost" type="button" id="teacher-logout">Выйти</button>
+          <button class="button button-ghost" type="button" id="teacher-logout">Р’С‹Р№С‚Рё</button>
           <button class="button button-ghost" type="button" id="teacher-home">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h18"/><path d="M9 6 3 12l6 6"/></svg>
-            <span>На главную</span>
+            <span>РќР° РіР»Р°РІРЅСѓСЋ</span>
           </button>
         </div>
       </div>
 
-      <div class="analytics-grid" aria-label="Сводная аналитика">
+      <div class="analytics-grid" aria-label="РЎРІРѕРґРЅР°СЏ Р°РЅР°Р»РёС‚РёРєР°">
         <article class="analytic-card">
           <div class="analytic-card-head">
             <span class="analytic-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6"/><path d="M23 11h-6"/></svg></span>
-            <span>Сдано работ</span>
+            <span>РЎРґР°РЅРѕ СЂР°Р±РѕС‚</span>
           </div>
           <div class="analytic-number highlight">${totalCompleted}</div>
         </article>
         <article class="analytic-card">
           <div class="analytic-card-head">
             <span class="analytic-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 16 4-4 3 3 5-7"/></svg></span>
-            <span>Средний балл</span>
+            <span>РЎСЂРµРґРЅРёР№ Р±Р°Р»Р»</span>
           </div>
           <div class="analytic-number">${avgScore}<small class="analytic-suffix"> / 8</small></div>
         </article>
         <article class="analytic-card">
           <div class="analytic-card-head">
             <span class="analytic-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></span>
-            <span>Максимальный балл</span>
+            <span>РњР°РєСЃРёРјР°Р»СЊРЅС‹Р№ Р±Р°Р»Р»</span>
           </div>
           <div class="analytic-number">${maxScore}<small class="analytic-suffix"> / 8</small></div>
         </article>
         <article class="analytic-card">
           <div class="analytic-card-head">
             <span class="analytic-icon analytic-icon-danger" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
-            <span>Уходов со вкладки</span>
+            <span>РЈС…РѕРґРѕРІ СЃРѕ РІРєР»Р°РґРєРё</span>
           </div>
           <div class="analytic-number danger">${totalTabSwitches}</div>
         </article>
       </div>
 
-      <section class="task-stats-panel" aria-label="События">
-        <div class="panel-head">
-          <div>
-            <h3 class="panel-title">События / контрольные</h3>
-            <p class="panel-subtitle">Создайте событие, сообщите ученикам ID события. В экзамене защита от списывания включена, в тренировке — нет.</p>
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end;margin-bottom:16px">
-          <div class="form-group" style="margin:0">
-            <label for="event-title">Название события</label>
-            <input id="event-title" class="task-answer-input" style="max-width:100%" placeholder="Пробник 9А, 28.11">
-          </div>
-          <button class="button button-primary" type="button" id="btn-create-event">Создать событие</button>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
-          <button class="button ${selectedEventFilter === "" ? "button-primary" : "button-ghost"} button-compact" type="button" data-event-filter="">Все результаты</button>
-          ${events.map((e) => `<button class="button ${selectedEventFilter === e.code ? "button-primary" : "button-ghost"} button-compact" type="button" data-event-filter="${escapeHtml(e.code)}">${escapeHtml(e.code)}</button>`).join("")}
-        </div>
-        <div class="active-codes-list">
-          ${events.length ? events.map((e) => `
-            <div class="code-item-row">
-              <span class="code-badge">${escapeHtml(e.code)}</span>
-              <span class="code-student" title="${escapeHtml(e.title)}">${escapeHtml(e.title)} · ${e.active ? "активно" : "закрыто"}</span>
-              <button class="button button-ghost button-compact" type="button" data-toggle-event="${escapeHtml(e.code)}" data-active="${e.active ? "1" : "0"}">${e.active ? "Закрыть" : "Открыть"}</button>
-            </div>`).join("") : '<div class="empty-note">Событий пока нет.</div>'}
-        </div>
-      </section>
+      
 
-      <section class="task-stats-panel" aria-label="Успешность по заданиям">
+      <section class="task-stats-panel" aria-label="РЈСЃРїРµС€РЅРѕСЃС‚СЊ РїРѕ Р·Р°РґР°РЅРёСЏРј">
         <div class="panel-head">
           <div>
-            <h3 class="panel-title">Успешность по заданиям</h3>
-            <p class="panel-subtitle">Процент правильных ответов по каждому номеру первой части.</p>
+            <h3 class="panel-title">РЈСЃРїРµС€РЅРѕСЃС‚СЊ РїРѕ Р·Р°РґР°РЅРёСЏРј</h3>
+            <p class="panel-subtitle">РџСЂРѕС†РµРЅС‚ РїСЂР°РІРёР»СЊРЅС‹С… РѕС‚РІРµС‚РѕРІ РїРѕ РєР°Р¶РґРѕРјСѓ РЅРѕРјРµСЂСѓ РїРµСЂРІРѕР№ С‡Р°СЃС‚Рё.</p>
           </div>
         </div>
         <div class="task-bars-grid">
@@ -818,7 +773,7 @@ async function renderTeacher() {
               <div class="task-bar-track" aria-hidden="true">
                 <div class="task-bar-fill" style="height: ${Math.max(6, t.correctPct)}%"></div>
               </div>
-              <span class="task-bar-label">№${t.num}</span>
+              <span class="task-bar-label">в„–${t.num}</span>
               <span class="task-bar-pct">${t.correctPct}%</span>
             </div>`
       )
@@ -830,87 +785,106 @@ async function renderTeacher() {
         <div class="teacher-sidebar">
           <div class="card">
             <div class="card-block-head">
-              <h2>События</h2>
-              <p class="panel-subtitle">Создайте событие, раздайте его ID и 6-значные ID учеников. Статистика и античит работают внутри события.</p>
+              <h2>РџСЂРѕС„РёР»Рё СѓС‡РµРЅРёРєРѕРІ</h2>
+              <p class="panel-subtitle">РўРѕР»СЊРєРѕ Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ/СѓС‡РёС‚РµР»СЊ СЃРѕР·РґР°С‘С‚ РїСЂРѕС„РёР»Рё РґР»СЏ С‚СЂРµРЅРёСЂРѕРІРєРё. Р’С‹РґР°Р№С‚Рµ СѓС‡РµРЅРёРєСѓ 6-Р·РЅР°С‡РЅС‹Р№ ID.</p>
             </div>
             <div class="form-group">
-              <label for="event-title">Название события</label>
-              <input id="event-title" class="task-answer-input" style="max-width:100%" placeholder="Пробник 9А, март">
+              <label for="new-profile-name">РРјСЏ Рё С„Р°РјРёР»РёСЏ</label>
+              <input id="new-profile-name" class="task-answer-input" style="max-width:100%" placeholder="РРІР°РЅРѕРІ РРІР°РЅ">
+            </div>
+            <div class="form-group">
+              <label for="new-profile-class">РљР»Р°СЃСЃ (РЅРµРѕР±СЏР·Р°С‚РµР»СЊРЅРѕ)</label>
+              <input id="new-profile-class" class="task-answer-input" style="max-width:100%" placeholder="9Рђ">
             </div>
             <div class="sidebar-actions">
-              <button class="button button-primary" type="button" id="btn-create-event">Создать событие</button>
+              <button class="button button-primary" type="button" id="btn-create-profile">РЎРѕР·РґР°С‚СЊ РїСЂРѕС„РёР»СЊ</button>
+            </div>
+            <p id="created-profile-note" class="form-note hidden"></p>
+          </div>
+
+          <div class="card">
+            <div class="card-block-head">
+              <h2>РЎРѕР±С‹С‚РёСЏ</h2>
+              <p class="panel-subtitle">РЎРѕР·РґР°Р№С‚Рµ СЃРѕР±С‹С‚РёРµ, СЂР°Р·РґР°Р№С‚Рµ РµРіРѕ ID Рё 6-Р·РЅР°С‡РЅС‹Рµ ID СѓС‡РµРЅРёРєРѕРІ. РЎС‚Р°С‚РёСЃС‚РёРєР° Рё Р°РЅС‚РёС‡РёС‚ СЂР°Р±РѕС‚Р°СЋС‚ РІРЅСѓС‚СЂРё СЃРѕР±С‹С‚РёСЏ.</p>
+            </div>
+            <div class="form-group">
+              <label for="event-title">РќР°Р·РІР°РЅРёРµ СЃРѕР±С‹С‚РёСЏ</label>
+              <input id="event-title" class="task-answer-input" style="max-width:100%" placeholder="РџСЂРѕР±РЅРёРє 9Рђ, РјР°СЂС‚">
+            </div>
+            <div class="sidebar-actions">
+              <button class="button button-primary" type="button" id="btn-create-event">РЎРѕР·РґР°С‚СЊ СЃРѕР±С‹С‚РёРµ</button>
             </div>
             <div class="form-group" style="margin-top:12px">
-              <label for="event-select">Активное событие</label>
+              <label for="event-select">РђРєС‚РёРІРЅРѕРµ СЃРѕР±С‹С‚РёРµ</label>
               <select id="event-select" class="task-answer-input" style="max-width:100%">
-                ${events.length ? events.map((e) => `<option value="${escapeHtml(e.code)}" ${e.code===selectedEventCode?"selected":""}>${escapeHtml(e.title)} (${escapeHtml(e.code)})</option>`).join("") : `<option value="">Нет событий</option>`}
+                ${events.length ? events.map((e) => `<option value="${escapeHtml(e.code)}" ${e.code===selectedEventCode?"selected":""}>${escapeHtml(e.title)} (${escapeHtml(e.code)})</option>`).join("") : `<option value="">РќРµС‚ СЃРѕР±С‹С‚РёР№</option>`}
               </select>
             </div>
-            ${selectedEvent ? `<p class="form-note">ID события: <b>${escapeHtml(selectedEvent.code)}</b></p>` : `<p class="form-note">Сначала создайте событие.</p>`}
+            ${selectedEvent ? `<p class="form-note">ID СЃРѕР±С‹С‚РёСЏ: <b>${escapeHtml(selectedEvent.code)}</b></p>` : `<p class="form-note">РЎРЅР°С‡Р°Р»Р° СЃРѕР·РґР°Р№С‚Рµ СЃРѕР±С‹С‚РёРµ.</p>`}
           </div>
 
           ${staffActor.role === "admin" ? `
           <div class="card">
             <div class="card-block-head">
-              <h2>Учителя</h2>
-              <p class="panel-subtitle">Назначьте учителей: они смогут входить по своему логину и паролю.</p>
+              <h2>РЈС‡РёС‚РµР»СЏ</h2>
+              <p class="panel-subtitle">РќР°Р·РЅР°С‡СЊС‚Рµ СѓС‡РёС‚РµР»РµР№: РѕРЅРё СЃРјРѕРіСѓС‚ РІС…РѕРґРёС‚СЊ РїРѕ СЃРІРѕРµРјСѓ Р»РѕРіРёРЅСѓ Рё РїР°СЂРѕР»СЋ.</p>
             </div>
             <div class="form-group">
-              <label for="new-teacher-name">Имя учителя</label>
-              <input id="new-teacher-name" class="task-answer-input" style="max-width:100%" placeholder="Иванова М.А.">
+              <label for="new-teacher-name">РРјСЏ СѓС‡РёС‚РµР»СЏ</label>
+              <input id="new-teacher-name" class="task-answer-input" style="max-width:100%" placeholder="РРІР°РЅРѕРІР° Рњ.Рђ.">
             </div>
             <div class="form-group">
-              <label for="new-teacher-login">Логин</label>
+              <label for="new-teacher-login">Р›РѕРіРёРЅ</label>
               <input id="new-teacher-login" class="task-answer-input" style="max-width:100%" placeholder="teacher1" autocomplete="off">
             </div>
             <div class="form-group">
-              <label for="new-teacher-password">Пароль</label>
-              <input id="new-teacher-password" class="task-answer-input" style="max-width:100%" placeholder="Пароль учителя" autocomplete="new-password">
+              <label for="new-teacher-password">РџР°СЂРѕР»СЊ</label>
+              <input id="new-teacher-password" class="task-answer-input" style="max-width:100%" placeholder="РџР°СЂРѕР»СЊ СѓС‡РёС‚РµР»СЏ" autocomplete="new-password">
             </div>
             <div class="sidebar-actions">
-              <button class="button button-primary" type="button" id="btn-create-teacher">Добавить учителя</button>
+              <button class="button button-primary" type="button" id="btn-create-teacher">Р”РѕР±Р°РІРёС‚СЊ СѓС‡РёС‚РµР»СЏ</button>
             </div>
             <div class="sidebar-section">
               <div class="sidebar-section-header">
-                <span class="sidebar-section-title">Назначенные учителя <span class="count-chip">${teachers.length}</span></span>
+                <span class="sidebar-section-title">РќР°Р·РЅР°С‡РµРЅРЅС‹Рµ СѓС‡РёС‚РµР»СЏ <span class="count-chip">${teachers.length}</span></span>
               </div>
               <div class="active-codes-list">
                 ${teachers.length ? teachers.map((t) => `
                   <div class="code-item-row">
-                    <span class="code-student" title="${escapeHtml(t.name)} (${escapeHtml(t.login)})">${escapeHtml(t.name)} · <code>${escapeHtml(t.login)}</code></span>
-                    <button class="button button-ghost button-compact" type="button" data-delete-teacher="${escapeHtml(t.id)}">Удалить</button>
-                  </div>`).join("") : '<div class="empty-note">Учителя не назначены.</div>'}
+                    <span class="code-student" title="${escapeHtml(t.name)} (${escapeHtml(t.login)})">${escapeHtml(t.name)} В· <code>${escapeHtml(t.login)}</code></span>
+                    <button class="button button-ghost button-compact" type="button" data-delete-teacher="${escapeHtml(t.id)}">РЈРґР°Р»РёС‚СЊ</button>
+                  </div>`).join("") : '<div class="empty-note">РЈС‡РёС‚РµР»СЏ РЅРµ РЅР°Р·РЅР°С‡РµРЅС‹.</div>'}
               </div>
             </div>
           </div>` : ""}
 
                     <div class="card">
             <div class="card-block-head">
-              <h2>ID учеников для события</h2>
-              <p class="panel-subtitle">6-значные коды. Создавайте их внутри выбранного события.</p>
+              <h2>ID СѓС‡РµРЅРёРєРѕРІ РґР»СЏ СЃРѕР±С‹С‚РёСЏ</h2>
+              <p class="panel-subtitle">6-Р·РЅР°С‡РЅС‹Рµ РєРѕРґС‹. РЎРѕР·РґР°РІР°Р№С‚Рµ РёС… РІРЅСѓС‚СЂРё РІС‹Р±СЂР°РЅРЅРѕРіРѕ СЃРѕР±С‹С‚РёСЏ.</p>
             </div>
 
             <div class="form-group">
-              <label for="students-class">Класс (по умолчанию)</label>
-              <input id="students-class" class="task-answer-input" style="max-width:100%" placeholder="9А" value="9А">
+              <label for="students-class">РљР»Р°СЃСЃ (РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ)</label>
+              <input id="students-class" class="task-answer-input" style="max-width:100%" placeholder="9Рђ" value="9Рђ">
             </div>
             <div class="form-group">
-              <label for="students-names">Список учеников</label>
-              <textarea id="students-names" class="student-input-textarea" placeholder="Иванов И.&#10;Петрова А.&#10;Сидоров Д."></textarea>
+              <label for="students-names">РЎРїРёСЃРѕРє СѓС‡РµРЅРёРєРѕРІ</label>
+              <textarea id="students-names" class="student-input-textarea" placeholder="РРІР°РЅРѕРІ Р.&#10;РџРµС‚СЂРѕРІР° Рђ.&#10;РЎРёРґРѕСЂРѕРІ Р”."></textarea>
             </div>
             <div class="sidebar-actions">
               <button class="button button-primary" type="button" id="btn-create-named-codes" ${selectedEvent ? "" : "disabled"}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-                <span>Создать 6-значные ID</span>
+                <span>РЎРѕР·РґР°С‚СЊ 6-Р·РЅР°С‡РЅС‹Рµ ID</span>
               </button>
             </div>
 
             <div class="sidebar-section">
               <div class="sidebar-section-header">
-                <span class="sidebar-section-title">Активные ID <span class="count-chip">${activeCodes.length}</span></span>
+                <span class="sidebar-section-title">РђРєС‚РёРІРЅС‹Рµ ID <span class="count-chip">${activeCodes.length}</span></span>
                 <button class="button button-ghost button-compact" type="button" id="copy-active-codes">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                  <span>Скопировать</span>
+                  <span>РЎРєРѕРїРёСЂРѕРІР°С‚СЊ</span>
                 </button>
               </div>
               <div class="active-codes-list">
@@ -920,11 +894,11 @@ async function renderTeacher() {
           (c) => `
                     <div class="code-item-row">
                       <span class="code-badge">${escapeHtml(c.code)}</span>
-                      <span class="code-student" title="${escapeHtml(c.studentName || "Ученик")} (${escapeHtml(c.className || "9А")})">${escapeHtml(c.studentName || "Ученик")} (${escapeHtml(c.className || "9А")})</span>
+                      <span class="code-student" title="${escapeHtml(c.studentName || "РЈС‡РµРЅРёРє")} (${escapeHtml(c.className || "9Рђ")})">${escapeHtml(c.studentName || "РЈС‡РµРЅРёРє")} (${escapeHtml(c.className || "9Рђ")})</span>
                     </div>`
         )
         .join("")
-      : '<div class="empty-note">Нет активных ID. Создайте их выше.</div>'
+      : '<div class="empty-note">РќРµС‚ Р°РєС‚РёРІРЅС‹С… ID. РЎРѕР·РґР°Р№С‚Рµ РёС… РІС‹С€Рµ.</div>'
     }
               </div>
             </div>
@@ -933,7 +907,7 @@ async function renderTeacher() {
             <div class="sidebar-section sidebar-section-danger">
               <button class="button button-danger button-wide" type="button" id="clear-local-btn">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                <span>Очистить локальные данные</span>
+                <span>РћС‡РёСЃС‚РёС‚СЊ Р»РѕРєР°Р»СЊРЅС‹Рµ РґР°РЅРЅС‹Рµ</span>
               </button>
             </div>` : ""}
           </div>
@@ -943,13 +917,13 @@ async function renderTeacher() {
           <div class="card">
             <div class="results-header">
               <div>
-                <h2>Ведомость результатов</h2>
-                <p class="panel-subtitle">Всего записей: ${sortedResults.length}</p>
+                <h2>Р’РµРґРѕРјРѕСЃС‚СЊ СЂРµР·СѓР»СЊС‚Р°С‚РѕРІ</h2>
+                <p class="panel-subtitle">Р’СЃРµРіРѕ Р·Р°РїРёСЃРµР№: ${sortedResults.length}</p>
               </div>
               <div class="results-header-actions">
                 <button class="button button-primary" type="button" id="download-csv-btn">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
-                  <span>Скачать ведомость (.csv)</span>
+                  <span>РЎРєР°С‡Р°С‚СЊ РІРµРґРѕРјРѕСЃС‚СЊ (.csv)</span>
                 </button>
               </div>
             </div>
@@ -960,16 +934,16 @@ async function renderTeacher() {
                 <table class="table-results">
                   <thead>
                     <tr>
-                      <th class="col-student">Ученик (Имя Ф.)</th>
-                      <th class="col-class">Класс</th>
+                      <th class="col-student">РЈС‡РµРЅРёРє (РРјСЏ Р¤.)</th>
+                      <th class="col-class">РљР»Р°СЃСЃ</th>
                       <th class="col-code">ID</th>
-                      <th class="col-event">Событие</th>
-                      <th class="col-date">Дата</th>
-                      <th class="col-time">Время</th>
-                      <th class="col-score">Баллы</th>
-                      <th class="col-answers">Ответы по заданиям</th>
-                      <th class="col-exits">Выходы</th>
-                      <th class="col-status">Статус</th>
+                      <th class="col-event">РЎРѕР±С‹С‚РёРµ</th>
+                      <th class="col-date">Р”Р°С‚Р°</th>
+                      <th class="col-time">Р’СЂРµРјСЏ</th>
+                      <th class="col-score">Р‘Р°Р»Р»С‹</th>
+                      <th class="col-answers">РћС‚РІРµС‚С‹ РїРѕ Р·Р°РґР°РЅРёСЏРј</th>
+                      <th class="col-exits">Р’С‹С…РѕРґС‹</th>
+                      <th class="col-status">РЎС‚Р°С‚СѓСЃ</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -977,21 +951,21 @@ async function renderTeacher() {
         .map(
           (res) => `
                       <tr>
-                        <td class="col-student"><b>${escapeHtml(res.studentName || res.fullName || "—")}</b></td>
-                        <td class="col-class">${escapeHtml(res.className || "—")}</td>
+                        <td class="col-student"><b>${escapeHtml(res.studentName || res.fullName || "вЂ”")}</b></td>
+                        <td class="col-class">${escapeHtml(res.className || "вЂ”")}</td>
                         <td class="col-code"><code>${escapeHtml(res.code)}</code></td>
-                        <td class="col-event">${res.eventCode ? `<div><b>${escapeHtml(res.eventTitle || "Событие")}</b><div class="muted small">${escapeHtml(res.eventCode)}</div></div>` : '<span class="muted">Тренировка</span>'}</td>
+                        <td class="col-event">${res.eventCode ? `<div><b>${escapeHtml(res.eventTitle || "РЎРѕР±С‹С‚РёРµ")}</b><div class="muted small">${escapeHtml(res.eventCode)}</div></div>` : '<span class="muted">РўСЂРµРЅРёСЂРѕРІРєР°</span>'}</td>
                         <td class="col-date">${escapeHtml(new Date(res.finishedAt).toLocaleString("ru-RU"))}</td>
                         <td class="col-time">${formatDuration(res.durationSeconds)}</td>
                         <td class="col-score score-cell">${res.score} / 8</td>
                         <td class="col-answers answers-cell">
                           ${(res.answers || [])
-              .map((a) => `№${a.number}: «${escapeHtml(a.answer || "—")}» ${a.correct ? "✓" : "✗"}`)
-              .join(" · ")}
+              .map((a) => `в„–${a.number}: В«${escapeHtml(a.answer || "вЂ”")}В» ${a.correct ? "вњ“" : "вњ—"}`)
+              .join(" В· ")}
                         </td>
-                        <td class="col-exits"><span style="color:${res.tabSwitches > 0 ? "var(--danger-text)" : "inherit"};font-weight:700">${res.mode === "practice" ? "—" : res.tabSwitches}</span></td>
+                        <td class="col-exits"><span style="color:${res.tabSwitches > 0 ? "var(--danger-text)" : "inherit"};font-weight:700">${res.mode === "practice" ? "вЂ”" : res.tabSwitches}</span></td>
                         <td class="col-status">
-                          <span class="status-badge ${res.status.includes("Принудительно") ? "forced" : "completed"}">
+                          <span class="status-badge ${res.status.includes("РџСЂРёРЅСѓРґРёС‚РµР»СЊРЅРѕ") ? "forced" : "completed"}">
                             ${escapeHtml(res.status)}
                           </span>
                         </td>
@@ -1000,7 +974,7 @@ async function renderTeacher() {
         .join("")}
                   </tbody>
                 </table>`
-      : '<div class="empty-state">Пока нет результатов по выбранному фильтру.</div>'
+      : '<div class="empty-state">РџРѕРєР° РЅРµС‚ СЂРµР·СѓР»СЊС‚Р°С‚РѕРІ РїРѕ РІС‹Р±СЂР°РЅРЅРѕРјСѓ С„РёР»СЊС‚СЂСѓ.</div>'
     }
             </div>
           </div>
@@ -1009,12 +983,27 @@ async function renderTeacher() {
     </div>
   `;
 
-  // Обработчики панели учителя
+  // РћР±СЂР°Р±РѕС‚С‡РёРєРё РїР°РЅРµР»Рё СѓС‡РёС‚РµР»СЏ
   $("#teacher-home").addEventListener("click", () => showView("login-view"));
   $("#teacher-logout").addEventListener("click", () => {
     clearStaffSession();
     staffActor = null;
     showView("login-view");
+  });
+
+  $("#btn-create-profile")?.addEventListener("click", async () => {
+    const name = $("#new-profile-name").value.trim();
+    const className = $("#new-profile-class").value.trim();
+    const note = $("#created-profile-note");
+    try {
+      const profile = await registerProfile({ name, className });
+      $("#new-profile-name").value = "";
+      $("#new-profile-class").value = "";
+      if (note) {
+        note.textContent = `РџСЂРѕС„РёР»СЊ СЃРѕР·РґР°РЅ: ${profile.name} вЂ” ID ${profile.code}. Р’С‹РґР°Р№С‚Рµ СЌС‚РѕС‚ ID СѓС‡РµРЅРёРєСѓ.`;
+        note.classList.remove("hidden");
+      }
+    } catch (err) { alert(err.message || "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ РїСЂРѕС„РёР»СЊ."); }
   });
 
   $("#btn-create-event")?.addEventListener("click", async () => {
@@ -1023,7 +1012,7 @@ async function renderTeacher() {
       const ev = await createEvent({ title, owner: staffActor.name });
       window.__selectedEventCode = ev.code;
       await renderTeacher();
-    } catch (err) { alert(err.message || "Не удалось создать событие."); }
+    } catch (err) { alert(err.message || "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ СЃРѕР±С‹С‚РёРµ."); }
   });
   $("#event-select")?.addEventListener("change", async (e) => {
     window.__selectedEventCode = e.target.value;
@@ -1034,18 +1023,7 @@ async function renderTeacher() {
     try {
       await createEvent({ title, owner: staffActor.name });
       await renderTeacher();
-    } catch (e) { alert(e.message || "Не удалось создать событие."); }
-  });
-  document.querySelectorAll("[data-event-filter]").forEach((btn) => {
-    btn.addEventListener("click", async () => { selectedEventFilter = btn.getAttribute("data-event-filter") || ""; await renderTeacher(); });
-  });
-  document.querySelectorAll("[data-toggle-event]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const code = btn.getAttribute("data-toggle-event");
-      const active = btn.getAttribute("data-active") === "1";
-      await setEventActive(code, !active);
-      await renderTeacher();
-    });
+    } catch (e) { alert(e.message || "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ СЃРѕР±С‹С‚РёРµ."); }
   });
 
   if (staffActor.role === "admin") {
@@ -1057,14 +1035,14 @@ async function renderTeacher() {
         await createTeacher({ name, login, password });
         await renderTeacher();
       } catch (err) {
-        alert(err.message || "Не удалось добавить учителя.");
+        alert(err.message || "РќРµ СѓРґР°Р»РѕСЃСЊ РґРѕР±Р°РІРёС‚СЊ СѓС‡РёС‚РµР»СЏ.");
       }
     });
     document.querySelectorAll("[data-delete-teacher]").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const id = btn.getAttribute("data-delete-teacher");
         if (!id) return;
-        if (!confirm("Удалить этого учителя?")) return;
+        if (!confirm("РЈРґР°Р»РёС‚СЊ СЌС‚РѕРіРѕ СѓС‡РёС‚РµР»СЏ?")) return;
         await deleteTeacher(id);
         await renderTeacher();
       });
@@ -1076,13 +1054,13 @@ async function renderTeacher() {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
           </div>
           <div>
-            <h2>Очистить локальные данные?</h2>
-            <p>Будут удалены локальные коды, результаты и учителя на этом устройстве. Действие нельзя отменить.</p>
+            <h2>РћС‡РёСЃС‚РёС‚СЊ Р»РѕРєР°Р»СЊРЅС‹Рµ РґР°РЅРЅС‹Рµ?</h2>
+            <p>Р‘СѓРґСѓС‚ СѓРґР°Р»РµРЅС‹ Р»РѕРєР°Р»СЊРЅС‹Рµ РєРѕРґС‹, СЂРµР·СѓР»СЊС‚Р°С‚С‹ Рё СѓС‡РёС‚РµР»СЏ РЅР° СЌС‚РѕРј СѓСЃС‚СЂРѕР№СЃС‚РІРµ. Р”РµР№СЃС‚РІРёРµ РЅРµР»СЊР·СЏ РѕС‚РјРµРЅРёС‚СЊ.</p>
           </div>
         </div>
         <div class="modal-actions">
-          <button class="button button-ghost" type="button" id="cancel-clear">Отмена</button>
-          <button class="button button-danger" type="button" id="confirm-clear">Очистить</button>
+          <button class="button button-ghost" type="button" id="cancel-clear">РћС‚РјРµРЅР°</button>
+          <button class="button button-danger" type="button" id="confirm-clear">РћС‡РёСЃС‚РёС‚СЊ</button>
         </div>
       `);
       $("#cancel-clear").addEventListener("click", clearModal);
@@ -1098,39 +1076,39 @@ async function renderTeacher() {
 
   $("#btn-create-named-codes")?.addEventListener("click", async () => {
     const rawNames = $("#students-names").value;
-    const defaultCls = $("#students-class").value.trim() || "9А";
+    const defaultCls = $("#students-class").value.trim() || "9Рђ";
     const lines = rawNames.split("\n").map((s) => s.trim()).filter(Boolean);
-    if (!selectedEvent) { alert("Сначала создайте или выберите событие."); return; }
-    if (lines.length === 0) { alert("Введите хотя бы одно имя ученика."); return; }
+    if (!selectedEvent) { alert("РЎРЅР°С‡Р°Р»Р° СЃРѕР·РґР°Р№С‚Рµ РёР»Рё РІС‹Р±РµСЂРёС‚Рµ СЃРѕР±С‹С‚РёРµ."); return; }
+    if (lines.length === 0) { alert("Р’РІРµРґРёС‚Рµ С…РѕС‚СЏ Р±С‹ РѕРґРЅРѕ РёРјСЏ СѓС‡РµРЅРёРєР°."); return; }
     try {
       const created = await createStudentCodes(lines, defaultCls, selectedEvent);
       $("#students-names").value = "";
       await renderTeacher();
       modal(`
-        <h2>ID созданы</h2>
-        <p>Событие: <b>${escapeHtml(selectedEvent.title)}</b> (${escapeHtml(selectedEvent.code)})</p>
-        <p>Создано 6-значных ID: <b>${created.length}</b>.</p>
-        <div class="modal-actions"><button class="button button-primary" type="button" id="modal-ok">Отлично</button></div>
+        <h2>ID СЃРѕР·РґР°РЅС‹</h2>
+        <p>РЎРѕР±С‹С‚РёРµ: <b>${escapeHtml(selectedEvent.title)}</b> (${escapeHtml(selectedEvent.code)})</p>
+        <p>РЎРѕР·РґР°РЅРѕ 6-Р·РЅР°С‡РЅС‹С… ID: <b>${created.length}</b>.</p>
+        <div class="modal-actions"><button class="button button-primary" type="button" id="modal-ok">РћС‚Р»РёС‡РЅРѕ</button></div>
       `);
       $("#modal-ok").addEventListener("click", clearModal);
     } catch (err) {
-      alert(err.message || "Ошибка создания кодов");
+      alert(err.message || "РћС€РёР±РєР° СЃРѕР·РґР°РЅРёСЏ РєРѕРґРѕРІ");
     }
   });
 
   $("#copy-active-codes").addEventListener("click", async () => {
     const active = activeCodes;
     if (!active.length) {
-      alert("Нет активных кодов.");
+      alert("РќРµС‚ Р°РєС‚РёРІРЅС‹С… РєРѕРґРѕРІ.");
       return;
     }
     const text = active
-      .map((item) => `${item.code} — ${item.studentName || "Ученик"} (${item.className || "9А"})`)
+      .map((item) => `${item.code} вЂ” ${item.studentName || "РЈС‡РµРЅРёРє"} (${item.className || "9Рђ"})`)
       .join("\n");
 
     try {
       await navigator.clipboard.writeText(text);
-      alert(`Скопировано ${active.length} кодов в буфер обмена!`);
+      alert(`РЎРєРѕРїРёСЂРѕРІР°РЅРѕ ${active.length} РєРѕРґРѕРІ РІ Р±СѓС„РµСЂ РѕР±РјРµРЅР°!`);
     } catch {
       modal(`
         <div class="modal-header">
@@ -1138,13 +1116,13 @@ async function renderTeacher() {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
           </div>
           <div>
-            <h2>Список активных кодов</h2>
-            <p>Скопируйте коды вручную.</p>
+            <h2>РЎРїРёСЃРѕРє Р°РєС‚РёРІРЅС‹С… РєРѕРґРѕРІ</h2>
+            <p>РЎРєРѕРїРёСЂСѓР№С‚Рµ РєРѕРґС‹ РІСЂСѓС‡РЅСѓСЋ.</p>
           </div>
         </div>
         <textarea class="student-input-textarea" style="min-height:160px" readonly>${escapeHtml(text)}</textarea>
         <div class="modal-actions">
-          <button class="button button-primary" type="button" id="close-copy">Закрыть</button>
+          <button class="button button-primary" type="button" id="close-copy">Р—Р°РєСЂС‹С‚СЊ</button>
         </div>
       `);
       $("#close-copy").addEventListener("click", clearModal);
@@ -1161,18 +1139,18 @@ function csvCell(value) {
 function downloadCsv(results) {
   const answerColumns = [1, 2, 3, 4, 6, 7, 8, 10];
   const header = [
-    "Имя Ф.",
-    "Класс",
+    "РРјСЏ Р¤.",
+    "РљР»Р°СЃСЃ",
     "ID",
-    "Событие",
-    "Режим",
-    "Дата начала",
-    "Дата завершения",
-    "Затраченное время",
-    "Баллы",
-    ...answerColumns.map((n) => `Задание ${n}`),
-    "Количество выходов",
-    "Статус завершения",
+    "РЎРѕР±С‹С‚РёРµ",
+    "Р РµР¶РёРј",
+    "Р”Р°С‚Р° РЅР°С‡Р°Р»Р°",
+    "Р”Р°С‚Р° Р·Р°РІРµСЂС€РµРЅРёСЏ",
+    "Р—Р°С‚СЂР°С‡РµРЅРЅРѕРµ РІСЂРµРјСЏ",
+    "Р‘Р°Р»Р»С‹",
+    ...answerColumns.map((n) => `Р—Р°РґР°РЅРёРµ ${n}`),
+    "РљРѕР»РёС‡РµСЃС‚РІРѕ РІС‹С…РѕРґРѕРІ",
+    "РЎС‚Р°С‚СѓСЃ Р·Р°РІРµСЂС€РµРЅРёСЏ",
   ];
 
   const lines = [
@@ -1181,7 +1159,7 @@ function downloadCsv(results) {
       const answerMap = Object.fromEntries(
         (res.answers || []).map((item) => [
           item.number,
-          `${item.answer || ""}${item.correct ? " (верно)" : " (неверно)"}`,
+          `${item.answer || ""}${item.correct ? " (РІРµСЂРЅРѕ)" : " (РЅРµРІРµСЂРЅРѕ)"}`,
         ])
       );
       return [
@@ -1214,5 +1192,7 @@ function downloadCsv(results) {
   URL.revokeObjectURL(url);
 }
 
-// Запуск инициализации приложения
+// Р—Р°РїСѓСЃРє РёРЅРёС†РёР°Р»РёР·Р°С†РёРё РїСЂРёР»РѕР¶РµРЅРёСЏ
 initialize();
+
+

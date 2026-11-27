@@ -382,18 +382,11 @@ input[type="text"], input[type="password"], input[type="number"], textarea {
   font-size: 15px; line-height: 1.5;
   transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
 }
-.code-input {
-  padding-left: 48px;
-  font-family: var(--font-mono); font-size: 16px; font-weight: 700;
-  letter-spacing: 0.12em; text-transform: uppercase;
-}
-.input-icon {
-  position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
-  width: 20px; height: 20px;
-  display: grid; place-items: center;
-  font-family: var(--font-mono); font-size: 15px; font-weight: 700; color: var(--text-subtle);
-  pointer-events: none;
-}
+  .code-input {
+    padding-left: 56px;
+    font-family: var(--font-mono); font-size: 16px; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase;
+  }
 .code-input::placeholder { color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.06em; }
 .code-input:focus, .task-answer-input:focus, .student-input-textarea:focus,
 input:focus, textarea:focus {
@@ -1079,5 +1072,6 @@ body.in-exam .site-footer { opacity: 0.92; }
 @media (max-width: 720px) {
   .mode-switch { grid-template-columns: 1fr; }
   .mode-switch-btn { height: 44px; }
-  .code-input { font-size: 16px; letter-spacing: 0.16em; padding-left: 52px; }
+  .code-input { font-size: 16px; letter-spacing: 0.16em; padding-left: 60px; }
+  .input-icon { left: 18px; }
 }
