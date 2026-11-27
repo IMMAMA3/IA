@@ -843,18 +843,14 @@ export async function registerProfile({ name, className = "" }) {
   return profile;
 }
 
-export async function loginProfile({ code, name }) {
+export async function loginProfile({ code }) {
   const normalizedCode = String(code || "").trim().toUpperCase();
-  const cleanName = String(name || "").trim();
   if (!isProfileCode(normalizedCode)) throw new Error("ID профиля должен состоять из 6 цифр.");
-  if (cleanName.length < 2) throw new Error("Введите имя.");
   const sb = await initSupabase();
   const rows = await getCodesRaw(sb);
   const row = rows.find((r) => String(r.code || "").toUpperCase() === normalizedCode && isProfileRow(r));
   if (!row) throw new Error("Профиль с таким ID не найден.");
   const profile = profileFromRow(row);
-  const same = profile.name.toLowerCase().replace(/\s+/g, " ") === cleanName.toLowerCase().replace(/\s+/g, " ");
-  if (!same) throw new Error("Имя не совпадает с профилем.");
   saveLocalProfile(profile);
   return profile;
 }

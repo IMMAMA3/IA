@@ -9,8 +9,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=20261127j">
-  <script type="module" src="app.js?v=20261127j"></script>
+  <link rel="stylesheet" href="style.css?v=20261127k">
+  <script type="module" src="app.js?v=20261127k"></script>
 </head>
 <body>
   <div class="glow-bg" aria-hidden="true">
@@ -127,18 +127,14 @@
 
             <form id="login-form" class="login-form" novalidate>
               <div id="profile-fields">
-                <div class="form-group">
-                  <label for="profile-name">Имя и фамилия</label>
-                  <input id="profile-name" name="profileName" type="text" class="task-answer-input" style="max-width:100%" placeholder="Иванов Иван" autocomplete="name">
-                </div>
                 <div class="form-group" id="profile-code-wrap">
                   <label for="profile-code">ID профиля (6 цифр)</label>
                   <div class="input-with-icon">
-                    <span class="input-icon" aria-hidden="true">#</span>
+                    <span class="input-icon" aria-hidden="true"></span>
                     <input id="profile-code" name="profileCode" type="text" inputmode="numeric" maxlength="6" placeholder="123456" autocomplete="off" class="code-input">
                   </div>
                 </div>
-                <p class="form-note">Профиль для тренировки выдаёт администратор или учитель.</p>
+                <p class="form-note">Введите 6-значный ID профиля, выданный администратором или учителем.</p>
               </div>
 
               <p id="login-error" class="form-error" aria-live="polite"></p>
@@ -170,17 +166,10 @@
                 </div>
                 <div class="profile-action-card">
                   <h4>Войти в событие</h4>
-                  <p class="form-note">Введите ID события и ваш 6-значный ID участника, выданный учителем.</p>
+                  <p class="form-note">Введите ID события, выданный учителем.</p>
                   <div class="form-group">
                     <label for="profile-event-code">ID события</label>
                     <input id="profile-event-code" type="text" class="task-answer-input" style="max-width:100%;text-transform:uppercase" maxlength="10" placeholder="EVT-123456" autocomplete="off">
-                  </div>
-                  <div class="form-group">
-                    <label for="profile-event-student-code">ID участника (6 цифр)</label>
-                    <div class="input-with-icon">
-                      <span class="input-icon" aria-hidden="true">#</span>
-                      <input id="profile-event-student-code" type="text" inputmode="numeric" maxlength="6" placeholder="123456" autocomplete="off" class="code-input">
-                    </div>
                   </div>
                   <p id="profile-event-error" class="form-error" aria-live="polite"></p>
                   <button class="button button-primary button-wide" type="button" id="start-event-btn">Войти в событие</button>

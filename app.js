@@ -25,7 +25,7 @@ import {
   getProfileHistory,
   getEvents,
   createEvent,
-} from "./storage.js?v=20261127j";
+} from "./storage.js?v=20261127k";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
@@ -97,7 +97,6 @@ async function initialize() {
   bindLoginModeSwitch();
   setLoginMode("profile");
   if (studentProfile?.code) {
-    $("#profile-name").value = studentProfile.name || "";
     $("#profile-code").value = studentProfile.code || "";
   }
   showProfileDashboard();
@@ -138,10 +137,8 @@ function bindProfileDashboard() {
   $("#profile-logout")?.addEventListener("click", () => {
     localStorage.removeItem("oge.profile.v1");
     studentProfile = null;
-    $("#profile-name").value = "";
     $("#profile-code").value = "";
     $("#profile-event-code").value = "";
-    $("#profile-event-student-code").value = "";
     $("#profile-event-error").textContent = "";
     showProfileDashboard();
   });
@@ -167,10 +164,8 @@ function bindProfileDashboard() {
     btn.disabled = true;
     try {
       const eventCode = String($("#profile-event-code").value || "").trim().toUpperCase();
-      const code = String($("#profile-event-student-code").value || "").trim().toUpperCase();
       if (!/^EVT-\d{6}$/.test(eventCode)) throw new Error("Введите корректный ID события (EVT-123456).");
-      if (!/^\d{6}$/.test(code)) throw new Error("Введите 6-значный ID участника.");
-      const created = await startExam({ code, questions: createExam(), eventCode, profile: studentProfile });
+      const created = await startExam({ code: studentProfile.code, questions: createExam(), eventCode, profile: studentProfile });
       session = created;
       currentIndex = 0;
       activateExam();
@@ -243,10 +238,9 @@ $("#login-form").addEventListener("submit", async (event) => {
   submitBtn.style.opacity = "0.7";
 
   try {
-    const name = String(form.get("profileName") || "").trim();
     const code = String(form.get("profileCode") || "").trim().toUpperCase();
     if (!/^\d{6}$/.test(code)) throw new Error("Введите 6-значный ID профиля.");
-    const profile = await loginProfile({ code, name });
+    const profile = await loginProfile({ code });
     studentProfile = profile;
     showProfileDashboard();
   } catch (error) {

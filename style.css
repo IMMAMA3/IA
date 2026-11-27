@@ -383,7 +383,7 @@ input[type="text"], input[type="password"], input[type="number"], textarea {
   transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
 }
   .code-input {
-    padding-left: 56px;
+    padding-left: 18px;
     font-family: var(--font-mono); font-size: 16px; font-weight: 700;
     letter-spacing: 0.12em; text-transform: uppercase;
   }
@@ -1072,7 +1072,7 @@ body.in-exam .site-footer { opacity: 0.92; }
 @media (max-width: 720px) {
   .mode-switch { grid-template-columns: 1fr; }
   .mode-switch-btn { height: 44px; }
-  .code-input { font-size: 16px; letter-spacing: 0.16em; padding-left: 60px; }
+  .code-input { font-size: 16px; letter-spacing: 0.16em; padding-left: 18px; }
   .input-icon { left: 18px; }
 }
 
