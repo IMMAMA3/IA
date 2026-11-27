@@ -19,12 +19,13 @@ import {
   getTeachers,
   createTeacher,
   deleteTeacher,
-  getLocalProfile,`r`n  registerProfile,
+  getLocalProfile,
+  registerProfile,
   loginProfile,
   getProfileHistory,
   getEvents,
   createEvent,
-} from "./storage.js?v=20261127d";
+} from "./storage.js?v=20261127e";
 
 const $ = (selector) => document.querySelector(selector);
 const views = ["login-view", "exam-view", "result-view", "teacher-view"];
