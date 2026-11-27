@@ -1075,3 +1075,14 @@ body.in-exam .site-footer { opacity: 0.92; }
   .code-input { font-size: 16px; letter-spacing: 0.16em; padding-left: 60px; }
   .input-icon { left: 18px; }
 }
+
+
+/* Profile dashboard */
+.profile-card-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:16px; }
+.profile-actions-grid { display:grid; grid-template-columns:1fr; gap:14px; margin-top:8px; }
+.profile-action-card { border:1px solid var(--border); border-radius:14px; padding:16px; background:var(--bg-surface-alt); }
+.profile-action-card h4 { margin:0 0 6px; font-size:15px; }
+.profile-action-card .form-note { margin-bottom:12px; }
+.profile-action-card .form-group { margin-bottom:12px; }
+#profile-dashboard .panel-title { margin:2px 0 0; font-size:22px; }
+@media (min-width: 860px) { .profile-actions-grid { grid-template-columns:1fr 1fr; } }

@@ -25,7 +25,7 @@ import {
   getProfileHistory,
   getEvents,
   createEvent,
-} from "./storage.js?v=20261127g";
+} from "./storage.js?v=20261127h";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
@@ -39,7 +39,7 @@ let examFinished = false;
 let inputSaveTimer = null;
 let staffActor = getStaffSession();
 let studentProfile = getLocalProfile();
-let loginMode = "profile"; // profile | event
+let loginMode = "profile"; // profile | event (legacy; event entry now inside profile)
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -100,7 +100,8 @@ async function initialize() {
     $("#profile-name").value = studentProfile.name || "";
     $("#profile-code").value = studentProfile.code || "";
   }
-  renderProfileHistory();
+  showProfileDashboard();
+  bindProfileDashboard();
 
   try {
     await Promise.race([
@@ -133,6 +134,54 @@ async function initialize() {
 
 // ---------------- ВХОД УЧЕНИКА (ТОЛЬКО ID) ----------------
 
+function bindProfileDashboard() {
+  $("#profile-logout")?.addEventListener("click", () => {
+    localStorage.removeItem("oge.profile.v1");
+    studentProfile = null;
+    $("#profile-name").value = "";
+    $("#profile-code").value = "";
+    $("#profile-event-code").value = "";
+    $("#profile-event-student-code").value = "";
+    $("#profile-event-error").textContent = "";
+    showProfileDashboard();
+  });
+
+  $("#start-practice-btn")?.addEventListener("click", async () => {
+    const err = $("#profile-event-error");
+    err.textContent = "";
+    try {
+      if (!studentProfile?.code) throw new Error("Сначала войдите в профиль.");
+      const created = await startExam({ code: studentProfile.code, questions: createExam(), profile: studentProfile });
+      session = created;
+      currentIndex = 0;
+      activateExam();
+    } catch (e) {
+      err.textContent = e.message || "Не удалось начать тренировку.";
+    }
+  });
+
+  $("#start-event-btn")?.addEventListener("click", async () => {
+    const err = $("#profile-event-error");
+    err.textContent = "";
+    const btn = $("#start-event-btn");
+    btn.disabled = true;
+    try {
+      const eventCode = String($("#profile-event-code").value || "").trim().toUpperCase();
+      const code = String($("#profile-event-student-code").value || "").trim().toUpperCase();
+      if (!/^EVT-\d{6}$/.test(eventCode)) throw new Error("Введите корректный ID события (EVT-123456).");
+      if (!/^\d{6}$/.test(code)) throw new Error("Введите 6-значный ID участника.");
+      const created = await startExam({ code, questions: createExam(), eventCode, profile: studentProfile });
+      session = created;
+      currentIndex = 0;
+      activateExam();
+    } catch (e) {
+      err.textContent = e.message || "Не удалось войти в событие.";
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
 function setLoginMode(mode) {
   loginMode = mode === "event" ? "event" : "profile";
   $$("#login-mode-switch [data-mode]").forEach((btn) => btn.classList.toggle("active", btn.dataset.mode === loginMode));
@@ -143,6 +192,18 @@ function setLoginMode(mode) {
 
 function bindLoginModeSwitch() {
   $$("#login-mode-switch [data-mode]").forEach((btn) => btn.addEventListener("click", () => setLoginMode(btn.dataset.mode)));
+}
+
+function showProfileDashboard() {
+  const logged = !!studentProfile?.code;
+  $("#login-form")?.classList.toggle("hidden", logged);
+  $("#profile-dashboard")?.classList.toggle("hidden", !logged);
+  if (logged) {
+    $("#profile-greeting").textContent = studentProfile.name || "Ученик";
+    const meta = [studentProfile.className, `ID ${studentProfile.code}`].filter(Boolean).join(" · ");
+    $("#profile-meta").textContent = meta;
+  }
+  renderProfileHistory();
 }
 
 async function renderProfileHistory() {
@@ -182,28 +243,12 @@ $("#login-form").addEventListener("submit", async (event) => {
   submitBtn.style.opacity = "0.7";
 
   try {
-    let code = "";
-    let profile = null;
-    let eventCode = "";
-
-    if (loginMode === "event") {
-      eventCode = String(form.get("eventCode") || "").trim().toUpperCase();
-      code = String(form.get("eventStudentCode") || "").trim().toUpperCase();
-      if (!/^EVT-\d{6}$/.test(eventCode)) throw new Error("Введите корректный ID события (EVT-123456).");
-      if (!/^\d{6}$/.test(code)) throw new Error("Введите 6-значный ID ученика.");
-    } else {
-      const name = String(form.get("profileName") || "").trim();
-      code = String(form.get("profileCode") || "").trim().toUpperCase();
-      if (!/^\d{6}$/.test(code)) throw new Error("Введите 6-значный ID профиля.");
-      profile = await loginProfile({ code, name });
-      studentProfile = profile;
-      renderProfileHistory();
-    }
-
-    const created = await startExam({ code, questions: createExam(), eventCode, profile });
-    session = created;
-    currentIndex = 0;
-    activateExam();
+    const name = String(form.get("profileName") || "").trim();
+    const code = String(form.get("profileCode") || "").trim().toUpperCase();
+    if (!/^\d{6}$/.test(code)) throw new Error("Введите 6-значный ID профиля.");
+    const profile = await loginProfile({ code, name });
+    studentProfile = profile;
+    showProfileDashboard();
   } catch (error) {
     errorEl.textContent = error.message || "Не удалось войти.";
   } finally {
