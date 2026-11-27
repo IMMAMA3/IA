@@ -21,16 +21,23 @@ export async function initSupabase() {
     return null;
   }
 
+  const timeout = (ms, label) => new Promise((_, reject) => setTimeout(() => reject(new Error(`Таймаут: ${label}`)), ms));
+
   try {
-    const mod = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
+    const mod = await Promise.race([
+      import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm"),
+      timeout(7000, "загрузка Supabase SDK"),
+    ]);
     const createClient = mod?.createClient;
     if (typeof createClient !== "function") {
       throw new Error("Supabase SDK не экспортирует createClient");
     }
     supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey);
 
-    // Лёгкая проверка доступности API/ключа
-    const { error } = await supabase.from("access_codes").select("code").limit(1);
+    const { error } = await Promise.race([
+      supabase.from("access_codes").select("code").limit(1),
+      timeout(7000, "проверка Supabase API"),
+    ]);
     if (error) throw error;
 
     isSupabaseReady = true;
@@ -119,7 +126,7 @@ function teacherToCodeRow(t) {
     class_name: "__STAFF__",
     used: false,
     created_at: teacher.createdAt,
-    used_at: teacher.id,
+    used_at: null,
     session_id: JSON.stringify({ id: teacher.id, login: teacher.login, password: teacher.password, name: teacher.name, createdAt: teacher.createdAt }),
   };
 }
@@ -157,6 +164,14 @@ async function upsertTeacherCodeFallback(sb, teacher) {
   const row = teacherToCodeRow(teacher);
   try {
     const { error } = await sb.from("access_codes").upsert([row], { onConflict: "code" });
+    if (!error) return true;
+  } catch {}
+  try {
+    const { error } = await sb.from("access_codes").insert([row]);
+    if (!error) return true;
+  } catch {}
+  try {
+    const { error } = await sb.from("access_codes").update(row).eq("code", row.code);
     return !error;
   } catch {
     return false;
@@ -321,7 +336,9 @@ export async function getCodes() {
         .limit(100);
 
       if (data && !error) {
-        return data.map((doc) => ({
+        return data
+          .filter((doc) => String(doc.class_name || "") !== "__STAFF__" && !String(doc.code || "").startsWith("TCHR-"))
+          .map((doc) => ({
           code: doc.code,
           studentName: doc.student_name,
           className: doc.class_name || "",
@@ -335,7 +352,7 @@ export async function getCodes() {
       console.warn("Ошибка загрузки кодов из Supabase, читаем локальные:", err);
     }
   }
-  return readLocal(KEYS.codes, []);
+  return readLocal(KEYS.codes, []).filter((c) => String(c.className || "") !== "__STAFF__" && !String(c.code || "").startsWith("TCHR-"));
 }
 
 export async function getActiveCodes() {
