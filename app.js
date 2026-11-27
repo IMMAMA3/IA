@@ -25,7 +25,7 @@ import {
   getProfileHistory,
   getEvents,
   createEvent,
-} from "./storage.js?v=20261127e";
+} from "./storage.js?v=20261127f";
 
 const $ = (selector) => document.querySelector(selector);
 const views = ["login-view", "exam-view", "result-view", "teacher-view"];

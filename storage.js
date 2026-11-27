@@ -907,29 +907,6 @@ export async function setEventActive(code, active) {
   return event || null;
 }
 
-export function getLocalProfile() {
-  const raw = readLocal(KEYS.profile, null);
-  return raw ? normalizeProfile(raw) : null;
-}
-
-export function saveLocalProfile(profile) {
-  const p = normalizeProfile(profile);
-  writeLocal(KEYS.profile, p);
-  return p;
-}
-
-export function clearLocalProfile() {
-  localStorage.removeItem(KEYS.profile);
-}
-
-export async function upsertProfile(profile) {
-  const p = saveLocalProfile(profile);
-  const sb = await initSupabase();
-  if (sb) {
-    try { await sb.from("access_codes").upsert([profileToRow(p)], { onConflict: "code" }); } catch {}
-  }
-  return p;
-}
 
 export async function loginStudentProfile({ name, className }) {
   const cleanName = String(name || "").trim();
