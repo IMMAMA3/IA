@@ -1,4 +1,4 @@
-import { createExam, normalizeAnswer, isAnswerCorrect } from "./generators.js";
+import { createExam, normalizeAnswer, isAnswerCorrect } from "./generators.js?v=20261127l";
 import {
   getActiveCodes,
   createStudentCodes,
@@ -25,7 +25,7 @@ import {
   getProfileHistory,
   getEvents,
   createEvent,
-} from "./storage.js?v=20261127k";
+} from "./storage.js?v=20261127l";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
