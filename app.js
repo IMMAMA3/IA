@@ -1,4 +1,4 @@
-﻿import { createExam, normalizeAnswer, isAnswerCorrect } from "./generators.js";
+import { createExam, normalizeAnswer, isAnswerCorrect } from "./generators.js";
 import {
   getActiveCodes,
   createStudentCodes,
@@ -1012,18 +1012,11 @@ async function renderTeacher() {
       const ev = await createEvent({ title, owner: staffActor.name });
       window.__selectedEventCode = ev.code;
       await renderTeacher();
-    } catch (err) { alert(err.message || "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ СЃРѕР±С‹С‚РёРµ."); }
+    } catch (err) { alert(err.message || "Не удалось создать событие."); }
   });
   $("#event-select")?.addEventListener("change", async (e) => {
     window.__selectedEventCode = e.target.value;
     await renderTeacher();
-  });
-  $("#btn-create-event")?.addEventListener("click", async () => {
-    const title = $("#event-title")?.value?.trim();
-    try {
-      await createEvent({ title, owner: staffActor.name });
-      await renderTeacher();
-    } catch (e) { alert(e.message || "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ СЃРѕР±С‹С‚РёРµ."); }
   });
 
   if (staffActor.role === "admin") {
