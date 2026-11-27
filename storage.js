@@ -433,7 +433,7 @@ export async function startExam({ code, questions }) {
 
       if (data && !error) {
         if (data.used) {
-          throw new Error("Этот код доступа уже был использован.");
+          throw new Error("Код не найден или уже использован.");
         }
         accessCode = {
           code: data.code,
@@ -462,7 +462,7 @@ export async function startExam({ code, questions }) {
     throw new Error("Код доступа не найден в системе. Обратитесь к учителю.");
   }
   if (accessCode.used) {
-    throw new Error("Данный ID доступа уже использован и завершён.");
+    throw new Error("Данный ID доступа уже использован в экзамене.");
   }
 
   const session = {
@@ -675,7 +675,7 @@ export async function getResults() {
         });
       }
     } catch (err) {
-      console.warn("Не удалось прочитать результаты из Supabase, читаем локальные:", err);
+      console.warn("Не удалось загрузить результаты из Supabase, читаем локальные:", err);
     }
   }
   return readLocal(KEYS.results, []);

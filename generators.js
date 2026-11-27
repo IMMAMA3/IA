@@ -1,7 +1,7 @@
 const pick = (items) => items[Math.floor(Math.random() * items.length)];
 const int = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 const shuffled = (items) => [...items].sort(() => Math.random() - 0.5);
-const lettersRu = "АБВГДЕЖИКЛМНОПРСТУФХЦЧШЭЮЯ";
+const lettersRu = "��������������������������";
 
 function subscriptBase(n) {
   const map = { "2": "₂", "8": "₈", "10": "₁₀", "16": "₁₆" };
@@ -15,9 +15,9 @@ function toBase(n, base) {
 // ---------- Task 1 (demo: Unicode, 16 bit = 2 bytes, remove hero name + comma+space) ----------
 function generateTask1() {
   const heroesPool = [
-    "Шрек", "Пумба", "Маугли", "Рататуй", "Пиноккио", "Винни-Пух", "Белоснежка",
-    "Малефисента", "Человек-паук", "Золушка", "Бэмби", "Дамбо", "Аладдин", "Моана",
-    "Рапунцель", "Тарзан", "Геркулес", "Мулан", "Покахонтас", "Матроскин"
+    "����", "�����", "������", "�������", "��������", "�����-���", "����������",
+    "�����������", "�������-����", "�������", "�����", "�����", "�������", "�����",
+    "���������", "������", "��������", "�����", "����������", "���������"
   ];
   const count = 8;
   const heroes = shuffled(heroesPool).slice(0, count);
@@ -27,12 +27,12 @@ function generateTask1() {
   const bytesSaved = removedChars * 2;
   const bitsSaved = bytesSaved * 8;
   const askBits = Math.random() < 0.5;
-  const savedText = askBits ? `${bitsSaved} бит` : `${bytesSaved} байт`;
+  const savedText = askBits ? `${bitsSaved} ���` : `${bytesSaved} ����`;
   const textList = heroes.join(", ");
   return {
     number: 1,
-    title: "Кодирование текстовой информации",
-    prompt: `В одной из кодировок Unicode каждый символ кодируется 16 битами.<br>Ученик написал текст (в нём нет лишних пробелов):<br><br>«Мои любимые герои мультфильмов: ${escapeHtmlPrompt(textList)}».<br><br>Ученик удалил из списка имя героя одного мультфильма, а также лишние запятую и пробел – два пробела не должны идти подряд.<br>При этом размер нового предложения в данной кодировке оказался на <b>${savedText}</b> меньше, чем размер исходного предложения. Напишите в ответе удалённое имя героя мультфильма.`,
+    title: "����������� ��������� ����������",
+    prompt: `� ����� �� ��������� Unicode ������ ������ ���������� 16 ������.<br>������ ������� ����� (� ��� ��� ������ ��������):<br><br>���� ������� ����� ������������: ${escapeHtmlPrompt(textList)}�.<br><br>������ ������ �� ������ ��� ����� ������ �����������, � ����� ������ ������� � ������ � ��� ������� �� ������ ���� ������.<br>��� ���� ������ ������ ����������� � ������ ��������� �������� �� <b>${savedText}</b> ������, ��� ������ ��������� �����������. �������� � ������ �������� ��� ����� �����������.`,
     answer: removed,
     answerType: "text",
   };
@@ -41,34 +41,34 @@ function generateTask1() {
 // ---------- Task 2 (demo: radiogram with lost separators, 5 letters) ----------
 function generateTask2() {
   const morseLike = [
-    { l: "А", c: ".-" },
-    { l: "Д", c: "-.." },
-    { l: "Ж", c: "...-" },
-    { l: "Л", c: "-" },
-    { l: "Т", c: "...-" }, // avoid ambiguous - keep prefix-free
+    { l: "�", c: ".-" },
+    { l: "�", c: "-.." },
+    { l: "�", c: "...-" },
+    { l: "�", c: "-" },
+    { l: "�", c: "...-" }, // avoid ambiguous - keep prefix-free
   ];
   // Build a guaranteed prefix-free 5-letter code set
   const codeSets = [
     [
-      { l: "А", c: ".-" },
-      { l: "Д", c: "-.." },
-      { l: "Ж", c: "...-" },
-      { l: "Л", c: "-" },
-      { l: "Т", c: "..-" },
+      { l: "�", c: ".-" },
+      { l: "�", c: "-.." },
+      { l: "�", c: "...-" },
+      { l: "�", c: "-" },
+      { l: "�", c: "..-" },
     ],
     [
-      { l: "А", c: ".-" },
-      { l: "В", c: "-.." },
-      { l: "Д", c: "..-" },
-      { l: "Ж", c: "...-" },
-      { l: "Т", c: "-" },
+      { l: "�", c: ".-" },
+      { l: "�", c: "-.." },
+      { l: "�", c: "..-" },
+      { l: "�", c: "...-" },
+      { l: "�", c: "-" },
     ],
     [
-      { l: "А", c: "-" },
-      { l: "Г", c: ".-" },
-      { l: "Д", c: "-.." },
-      { l: "Ж", c: "..-" },
-      { l: "Л", c: "...-" },
+      { l: "�", c: "-" },
+      { l: "�", c: ".-" },
+      { l: "�", c: "-.." },
+      { l: "�", c: "..-" },
+      { l: "�", c: "...-" },
     ],
   ];
   const base = pick(codeSets);
@@ -82,8 +82,8 @@ function generateTask2() {
   const displayEncoded = encoded.split("").join(" ");
   return {
     number: 2,
-    title: "Декодирование сообщения",
-    prompt: `Разведчик передал в штаб радиограмму:<br><code class="sequence">${displayEncoded}</code><br><br>При передаче радиограммы было потеряно разбиение на буквы, но известно, что в ней использовались только следующие буквы:<br>${table}<br>Определите текст радиограммы. В ответе запишите получившееся слово (набор букв).`,
+    title: "������������� ���������",
+    prompt: `��������� ������� � ���� �����������:<br><code class="sequence">${displayEncoded}</code><br><br>��� �������� ����������� ���� �������� ��������� �� �����, �� ��������, ��� � ��� �������������� ������ ��������� �����:<br>${table}<br>���������� ����� �����������. � ������ �������� ������������ ����� (����� ����).`,
     answer: wordArr.join(""),
     answerType: "text",
   };
@@ -106,8 +106,8 @@ function generateTask3() {
     if (ans !== null) {
       return {
         number: 3,
-        title: "Истинность логического высказывания",
-        prompt: `Напишите наименьшее натуральное число <i>x</i>, для которого ложно высказывание:<br><code>(x &gt; ${A}) ИЛИ НЕ ((x &lt; ${B}) И (x &gt; ${C}))</code>.`,
+        title: "���������� ����������� ������������",
+        prompt: `�������� ���������� ����������� ����� <i>x</i>, ��� �������� ����� ������������:<br><code>(x &gt; ${A}) ��� �� ((x &lt; ${B}) � (x &gt; ${C}))</code>.`,
         answer: String(ans),
         answerType: "number",
       };
@@ -115,8 +115,8 @@ function generateTask3() {
   }
   return {
     number: 3,
-    title: "Истинность логического высказывания",
-    prompt: `Напишите наименьшее натуральное число <i>x</i>, для которого ложно высказывание:<br><code>(x &gt; 3) ИЛИ НЕ ((x &lt; 4) И (x &gt; 2))</code>.`,
+    title: "���������� ����������� ������������",
+    prompt: `�������� ���������� ����������� ����� <i>x</i>, ��� �������� ����� ������������:<br><code>(x &gt; 3) ��� �� ((x &lt; 4) � (x &gt; 2))</code>.`,
     answer: "3",
     answerType: "number",
   };
@@ -165,8 +165,8 @@ function generateTask4() {
     const table = `<div class="table-scroll"><table class="data-table"><thead><tr><th></th>${names.map((n) => `<th>${n}</th>`).join("")}</tr></thead><tbody>${names.map((r, i) => `<tr><th>${r}</th>${names.map((_, j) => `<td>${g[i][j] == null ? "" : g[i][j]}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
     return {
       number: 4,
-      title: "Кратчайший путь",
-      prompt: `Между населёнными пунктами A, B, C, D, E построены дороги, протяжённость которых (в километрах) приведена в таблице.<br>${table}<br>Определите длину кратчайшего пути между пунктами A и E. Передвигаться можно только по дорогам, протяжённость которых указана в таблице. Каждый пункт можно посетить только один раз.`,
+      title: "���������� ����",
+      prompt: `����� ���������� �������� A, B, C, D, E ��������� ������, ������������ ������� (� ����������) ��������� � �������.<br>${table}<br>���������� ����� ����������� ���� ����� �������� A � E. ������������� ����� ������ �� �������, ������������ ������� ������� � �������. ������ ����� ����� �������� ������ ���� ���.`,
       answer: String(ans),
       answerType: "number",
     };
@@ -194,25 +194,25 @@ function generateTask6() {
     }
     if (!candidates.length) continue;
     const ans = Math.max(...candidates);
-    const condText = useOr ? `(s > A) или (t > ${Tconst})` : `(s < A) и (t < ${Tconst})`;
+    const condText = useOr ? `(s > A) ��� (t > ${Tconst})` : `(s < A) � (t < ${Tconst})`;
     const condPy = useOr ? `(s > A) or (t > ${Tconst})` : `(s < A) and (t < ${Tconst})`;
     const condPas = useOr ? `(s > A) or (t > ${Tconst})` : `(s < A) and (t < ${Tconst})`;
     const condCpp = useOr ? `(s > A || t > ${Tconst})` : `(s < A && t < ${Tconst})`;
     const condBas = useOr ? `s > A OR t > ${Tconst}` : `s < A AND t < ${Tconst}`;
     const pairsText = pairs.map(([s, t]) => `(${s}, ${t})`).join("; ");
     const code =
-`<div class="code-table" style="margin-bottom:12px"><span><b>Алгоритмический</b></span><span><b>Паскаль</b></span><span><b>Python</b></span></div>
-<pre class="python-code">алг
-нач
-  цел s, t, A
-  ввод s
-  ввод t
-  ввод A
-  если ${condText}
-    то вывод "YES"
-    иначе вывод "NO"
-  все
-кон
+`<div class="code-table" style="margin-bottom:12px"><span><b>���������������</b></span><span><b>�������</b></span><span><b>Python</b></span></div>
+<pre class="python-code">���
+���
+  ��� s, t, A
+  ���� s
+  ���� t
+  ���� A
+  ���� ${condText}
+    �� ����� "YES"
+    ����� ����� "NO"
+  ���
+���
 
 var s, t, A: integer;
 begin
@@ -232,8 +232,8 @@ else:
     print("NO")</pre>`;
     return {
       number: 6,
-      title: "Условный оператор",
-      prompt: `Ниже приведена программа, записанная на нескольких языках программирования.<br>${code}<br>Было проведено 9 запусков программы, при которых в качестве значений переменных <i>s</i> и <i>t</i> вводились следующие пары чисел:<br><code class="sequence">${escapeHtmlPrompt(pairsText)}</code><br><br>Укажите наибольшее целое значение параметра <i>A</i>, при котором для указанных входных данных программа напечатает «NO» ровно <b>${targetNo}</b> раз.`,
+      title: "�������� ��������",
+      prompt: `���� ��������� ���������, ���������� �� ���������� ������ ����������������.<br>${code}<br>���� ��������� 9 �������� ���������, ��� ������� � �������� �������� ���������� <i>s</i> � <i>t</i> ��������� ��������� ���� �����:<br><code class="sequence">${escapeHtmlPrompt(pairsText)}</code><br><br>������� ���������� ����� �������� ��������� <i>A</i>, ��� ������� ��� ��������� ������� ������ ��������� ���������� �NO� ����� <b>${targetNo}</b> ���.`,
       answer: String(ans),
       answerType: "number",
     };
@@ -241,8 +241,8 @@ else:
   // deterministic fallback
   return {
     number: 6,
-    title: "Условный оператор",
-    prompt: `Ниже приведена программа. Было проведено 9 запусков: (13, 2); (11, 12); (-12, 12); (2, -2); (-10, -10); (6, -5); (2, 8); (9, 10); (1, 13).<br><pre class="python-code">s = int(input())\nt = int(input())\nA = int(input())\nif (s > A) or (t > 12):\n    print("YES")\nelse:\n    print("NO")</pre>Укажите наибольшее целое значение параметра A, при котором программа напечатает «NO» ровно 5 раз.`,
+    title: "�������� ��������",
+    prompt: `���� ��������� ���������. ���� ��������� 9 ��������: (13, 2); (11, 12); (-12, 12); (2, -2); (-10, -10); (6, -5); (2, 8); (9, 10); (1, 13).<br><pre class="python-code">s = int(input())\nt = int(input())\nA = int(input())\nif (s > A) or (t > 12):\n    print("YES")\nelse:\n    print("NO")</pre>������� ���������� ����� �������� ��������� A, ��� ������� ��������� ���������� �NO� ����� 5 ���.`,
     answer: "2",
     answerType: "number",
   };
@@ -307,8 +307,8 @@ function generateTask7() {
   const list = `<ol class="fragment-list">${frags.map((f, i) => `<li><b>${i + 1})</b> <code>${escapeHtmlPrompt(f.t)}</code></li>`).join("")}</ol>`;
   return {
     number: 7,
-    title: "Адрес файла в сети Интернет",
-    prompt: `Доступ к файлу <b>${escapeHtmlPrompt(fileName)}.${escapeHtmlPrompt(ext)}</b>, находящемуся на сервере <b>${escapeHtmlPrompt(server)}</b>, осуществляется по протоколу <b>${escapeHtmlPrompt(protocol)}</b>. Фрагменты адреса файла закодированы цифрами от 1 до 7. Запишите последовательность этих цифр, кодирующую адрес указанного файла в сети Интернет.<br>${list}`,
+    title: "����� ����� � ���� ��������",
+    prompt: `������ � ����� <b>${escapeHtmlPrompt(fileName)}.${escapeHtmlPrompt(ext)}</b>, ������������ �� ������� <b>${escapeHtmlPrompt(server)}</b>, �������������� �� ��������� <b>${escapeHtmlPrompt(protocol)}</b>. ��������� ������ ����� ������������ ������� �� 1 �� 7. �������� ������������������ ���� ����, ���������� ����� ���������� ����� � ���� ��������.<br>${list}`,
     answer: answerSeq,
     answerType: "text",
   };
@@ -327,10 +327,10 @@ function generateTask8() {
     if (ds <= 0 || ds > 2000) continue;
     if (dOnlyS < 0) continue;
     const names = pick([
-      ["Динамо", "Зенит", "Спартак"],
-      ["Орёл", "Сокол", "Беркут"],
-      ["Альфа", "Бета", "Гамма"],
-      ["Волга", "Нева", "Ока"],
+      ["������", "�����", "�������"],
+      ["���", "�����", "������"],
+      ["�����", "����", "�����"],
+      ["�����", "����", "���"],
     ]);
     const [A, B, C] = names;
     const rows = [
@@ -338,19 +338,19 @@ function generateTask8() {
       [`${A} & ${B}`, dz],
       [`${A} & ${B} & ${C}`, dzAndS],
     ];
-    const table = `<div class="table-scroll"><table class="data-table"><thead><tr><th>Запрос</th><th>Найдено страниц (в тысячах)</th></tr></thead><tbody>${rows.map(([q, v]) => `<tr><td><code>${escapeHtmlPrompt(q)}</code></td><td>${v}</td></tr>`).join("")}</tbody></table></div>`;
+    const table = `<div class="table-scroll"><table class="data-table"><thead><tr><th>������</th><th>������� ������� (� �������)</th></tr></thead><tbody>${rows.map(([q, v]) => `<tr><td><code>${escapeHtmlPrompt(q)}</code></td><td>${v}</td></tr>`).join("")}</tbody></table></div>`;
     return {
       number: 8,
-      title: "Запросы в поисковой системе",
-      prompt: `В языке запросов поискового сервера для обозначения логической операции «ИЛИ» используется символ «|», а для логической операции «И» – символ «&amp;».<br>В таблице приведены запросы и количество найденных по ним страниц некоторого сегмента сети Интернет.<br>${table}<br>Какое количество страниц (в тысячах) будет найдено по запросу <code>${escapeHtmlPrompt(A)} &amp; ${escapeHtmlPrompt(C)}</code>?<br>Считается, что все запросы выполняются практически одновременно, так что набор страниц, содержащих все искомые слова, не изменяется за время выполнения запросов.`,
+      title: "������� � ��������� �������",
+      prompt: `� ����� �������� ���������� ������� ��� ����������� ���������� �������� ���Ȼ ������������ ������ �|�, � ��� ���������� �������� �Ȼ � ������ �&amp;�.<br>� ������� ��������� ������� � ���������� ��������� �� ��� ������� ���������� �������� ���� ��������.<br>${table}<br>����� ���������� ������� (� �������) ����� ������� �� ������� <code>${escapeHtmlPrompt(A)} &amp; ${escapeHtmlPrompt(C)}</code>?<br>���������, ��� ��� ������� ����������� ����������� ������������, ��� ��� ����� �������, ���������� ��� ������� �����, �� ���������� �� ����� ���������� ��������.`,
       answer: String(ds),
       answerType: "number",
     };
   }
   return {
     number: 8,
-    title: "Запросы в поисковой системе",
-    prompt: `В языке запросов поискового сервера для обозначения логической операции «ИЛИ» используется символ «|», а для логической операции «И» – символ «&amp;».<br>В таблице приведены запросы и количество найденных по ним страниц некоторого сегмента сети Интернет.<div class="table-scroll"><table class="data-table"><thead><tr><th>Запрос</th><th>Найдено страниц (в тысячах)</th></tr></thead><tbody><tr><td><code>Динамо &amp; (Зенит | Спартак)</code></td><td>840</td></tr><tr><td><code>Динамо &amp; Зенит</code></td><td>530</td></tr><tr><td><code>Динамо &amp; Зенит &amp; Спартак</code></td><td>130</td></tr></tbody></table></div>Какое количество страниц (в тысячах) будет найдено по запросу <code>Динамо &amp; Спартак</code>?`,
+    title: "������� � ��������� �������",
+    prompt: `� ����� �������� ���������� ������� ��� ����������� ���������� �������� ���Ȼ ������������ ������ �|�, � ��� ���������� �������� �Ȼ � ������ �&amp;�.<br>� ������� ��������� ������� � ���������� ��������� �� ��� ������� ���������� �������� ���� ��������.<div class="table-scroll"><table class="data-table"><thead><tr><th>������</th><th>������� ������� (� �������)</th></tr></thead><tbody><tr><td><code>������ &amp; (����� | �������)</code></td><td>840</td></tr><tr><td><code>������ &amp; �����</code></td><td>530</td></tr><tr><td><code>������ &amp; ����� &amp; �������</code></td><td>130</td></tr></tbody></table></div>����� ���������� ������� (� �������) ����� ������� �� ������� <code>������ &amp; �������</code>?`,
     answer: "440",
     answerType: "number",
   };
@@ -373,16 +373,16 @@ function generateTask10() {
     if (new Set(reprs).size !== reprs.length) continue;
     return {
       number: 10,
-      title: "Системы счисления",
-      prompt: `Вычислите значение арифметического выражения:<br><code class="sequence">${expr}</code><br><br>В ответе запишите десятичное число. Основание системы счисления указывать не нужно.`,
+      title: "������� ���������",
+      prompt: `��������� �������� ��������������� ���������:<br><code class="sequence">${expr}</code><br><br>� ������ �������� ���������� �����. ��������� ������� ��������� ��������� �� �����.`,
       answer: String(ans),
       answerType: "number",
     };
   }
   return {
     number: 10,
-    title: "Системы счисления",
-    prompt: `Вычислите значение арифметического выражения:<br><code class="sequence">110111₂ + 1101₈ + 110₁₆</code><br><br>В ответе запишите десятичное число. Основание системы счисления указывать не нужно.`,
+    title: "������� ���������",
+    prompt: `��������� �������� ��������������� ���������:<br><code class="sequence">110111₂ + 1101₈ + 110₁₆</code><br><br>� ������ �������� ���������� �����. ��������� ������� ��������� ��������� �� �����.`,
     answer: "400",
     answerType: "number",
   };
@@ -408,9 +408,9 @@ function normalizeText(s) {
   return String(s ?? "")
     .trim()
     .toLocaleLowerCase("ru-RU")
-    .replace(/ё/g, "е")
+    .replace(/�/g, "�")
     .replace(/[\u00A0\s]+/g, " ")
-    .replace(/[“”«»„‟"'`]/g, "")
+    .replace(/[�����‟"'`]/g, "")
     .replace(/[.,;:!?()[\]{}]/g, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -454,8 +454,8 @@ export function isAnswerCorrect(userValue, correctValue) {
   const cText = normalizeText(correctRaw);
   if (uText === cText) return true;
 
-  // compact compare (ignores spaces, hyphens for names like "Винни-Пух"/"Винни Пух")
-  const compact = (s) => normalizeText(s).replace(/[\s\-–—]+/g, "");
+  // compact compare (ignores spaces, hyphens for names like "�����-���"/"����� ���")
+  const compact = (s) => normalizeText(s).replace(/[\s\-��]+/g, "");
   if (compact(userRaw) === compact(correctRaw)) return true;
 
   // also accept answer without leading zeros in purely digit sequences
